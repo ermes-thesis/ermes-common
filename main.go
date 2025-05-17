@@ -30,39 +30,31 @@ func main() {
 	lengthReq := len(req)
 
 	ctx := "{" +
-		"\"userId\": \"user\"," +
+		"\"userId\": \"usera\"," +
 		"\"groupToken\": [\"test\"]," +
 		"\"collections\": {}" +
 		"}"
 	lengthCtx := len(ctx)
 
-	// Allocate memory for the subject, and get a pointer to it.
-	// Include a byte for the NULL terminator we add below.
-	allocateResultCtx, _ := vm.Execute("malloc", int32(lengthCtx+1))
+	// Allocate memory for the request, and get a pointer to it.
+	allocateResultCtx, _ := vm.Execute("malloc", int32(lengthCtx))
 	ctxPointer := allocateResultCtx[0].(int32)
 
-	// Allocate memory for the subject, and get a pointer to it.
-	// Include a byte for the NULL terminator we add below.
-	allocateResultReq, _ := vm.Execute("malloc", int32(lengthReq+1))
+	// Allocate memory for the context, and get a pointer to it.
+	allocateResultReq, _ := vm.Execute("malloc", int32(lengthReq))
 	reqPointer := allocateResultReq[0].(int32)
 
-	// Write the subject into the memory.
+	// Write the request into the memory.
 	mod := vm.GetActiveModule()
 	mem := mod.FindMemory("memory")
-	memData, _ := mem.GetData(uint(ctxPointer), uint(lengthCtx+1))
-	copy(memData, ctx)
-
-	// C-string terminates by NULL.
-	memData[lengthCtx] = 0
-
-	// Write the subject into the memory.
-	memData2, _ := mem.GetData(uint(reqPointer), uint(lengthReq+1))
+	memData2, _ := mem.GetData(uint(reqPointer), uint(lengthReq))
 	copy(memData2, req)
 
-	// C-string terminates by NULL.
-	memData2[lengthReq] = 0
+	// Write the context into the memory.
+	memData, _ := mem.GetData(uint(ctxPointer), uint(lengthCtx))
+	copy(memData, ctx)
 
-	// Run the `greet` function. Given the pointer to the subject.
+	// Run the `entry` function, passing the pointers and the length of the buffers.
 	greetResult, _ := vm.Execute("entry", reqPointer, int32(lengthReq), ctxPointer, int32(lengthCtx))
 	outputPointer := greetResult[0].(int32)
 
@@ -70,11 +62,11 @@ func main() {
 	resultPointer := binary.LittleEndian.Uint32(memData[:4])
 	resultLength := binary.LittleEndian.Uint32(memData[4:])
 
-	// Read the result of the `greet` function.
+	// Read the result of the function.
 	memData, _ = mem.GetData(uint(resultPointer), uint(resultLength))
 	fmt.Println(string(memData))
 
-	// Deallocate the subject, and the output.
+	// Deallocate the buffers.
 	vm.Execute("free", reqPointer)
 	vm.Execute("free", ctxPointer)
 
