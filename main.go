@@ -58,10 +58,13 @@ func main() {
 	// Create the module instance with the module name "extern".
 	impmod := wasmedge.NewModule("extern")
 
-	// Create a function type: {i32, i32} -> {i32}.
-	functype := wasmedge.NewFunctionType(
+	hostGetType := wasmedge.NewFunctionType(
 		[]*wasmedge.ValType{wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32()},
 		[]*wasmedge.ValType{wasmedge.NewValTypeI32()},
+	)
+	hostPutType := wasmedge.NewFunctionType(
+		[]*wasmedge.ValType{wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32()},
+		[]*wasmedge.ValType{},
 	)
 
 	// Create a function context with the function type and host function body.
@@ -69,11 +72,14 @@ func main() {
 	// Developers should guarantee the life cycle of the data, and it can be
 	// `nil` if the external data is not needed.
 	// The last parameter can be 0 if developers do not need the cost measuring.
-	func_get := wasmedge.NewFunction(functype, hostGet, nil, 0)
+	hostGetFun := wasmedge.NewFunction(hostGetType, hostGet, nil, 0)
+	hostPutFun := wasmedge.NewFunction(hostPutType, hostPut, nil, 0)
 
 	// If the function object is not added into an module instance object, it should be released.
-	functype.Release()
-	impmod.AddFunction("HostGet", func_get)
+	hostGetType.Release()
+	hostPutType.Release()
+	impmod.AddFunction("HostGet", hostGetFun)
+	impmod.AddFunction("HostPut", hostPutFun)
 
 	err = vm.RegisterModule(impmod)
 	if err != nil {

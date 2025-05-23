@@ -33,3 +33,22 @@ func hostGet(data interface{}, callframe *wasmedge.CallingFrame, params []interf
 	// Return
 	return returns, wasmedge.Result_Success
 }
+
+func hostPut(data interface{}, callframe *wasmedge.CallingFrame, params []interface{}) ([]interface{}, wasmedge.Result) {
+	namePointer := params[0].(int32)
+	nameLength := params[1].(int32)
+	valuePointer := params[2].(int32)
+	valueLength := params[3].(int32)
+
+	mem := callframe.GetMemoryByIndex(0)
+
+	fmt.Println("namePointer: ", namePointer)
+	fmt.Println("nameLength: ", nameLength)
+
+	key, _ := mem.GetData(uint(namePointer), uint(nameLength))
+	value, _ := mem.GetData(uint(valuePointer), uint(valueLength))
+
+	client.Set(context.Background(), "data:"+string(key), string(value), 0).Err()
+
+	return nil, wasmedge.Result_Success
+}
