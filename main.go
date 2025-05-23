@@ -5,15 +5,16 @@ import (
 	"fmt"
 	"github.com/second-state/WasmEdge-go/wasmedge"
 	"os"
+	"strconv"
+	"time"
 )
 
 var dataMap = map[string]string{
-	"data:1234:battiti": "80",
-	"data:1234:peso":    "60",
+	"data:255ef4af-3a49-4382-a90d-6524bdee5ad1:battiti": "80",
+	"data:255ef4af-3a49-4382-a90d-6524bdee5ad1:peso":    "60",
 }
 
 func hostGet(data interface{}, callframe *wasmedge.CallingFrame, params []interface{}) ([]interface{}, wasmedge.Result) {
-	// add: i32, i32 -> i32
 	paramPointer := params[0].(int32)
 	paramLength := params[1].(int32)
 	mem := callframe.GetMemoryByIndex(0)
@@ -22,9 +23,8 @@ func hostGet(data interface{}, callframe *wasmedge.CallingFrame, params []interf
 	fmt.Println("paramLength: ", paramLength)
 	// Read the result of the function.
 	key, _ := mem.GetData(uint(paramPointer), uint(paramLength))
-	fmt.Println(string(key))
 
-	value := data.(map[string]string)[string(key)]
+	value := data.(map[string]string)["data:"+string(key)]
 
 	mallocFunc := callframe.GetModule().FindFunction("malloc")
 	resPtr, _ := callframe.GetExecutor().Invoke(mallocFunc, int32(len(value)+4))
@@ -65,7 +65,18 @@ func main() {
 	ctx := "{" +
 		"\"userId\": \"user\"," +
 		"\"groupToken\": [\"test\"]," +
-		"\"collections\": {}" +
+		"\"collections\": {" +
+		"\"test_collection\": [" +
+		"{" +
+		"\"CollectionId\": \"255ef4af-3a49-4382-a90d-6524bdee5ad1\"," +
+		"\"Metadata\": {" +
+		"\"name\": \"dati\"," +
+		"\"owner\": \"pippo\"," +
+		"\"created_at\": " + strconv.FormatInt(time.Now().UnixMilli(), 10) +
+		"}" +
+		"}" +
+		"]" +
+		"}" +
 		"}"
 	lengthCtx := len(ctx)
 
