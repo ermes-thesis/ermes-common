@@ -3,43 +3,18 @@ package main
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/redis/go-redis/v9"
 	"github.com/second-state/WasmEdge-go/wasmedge"
 	"os"
 	"strconv"
 	"time"
 )
 
-var dataMap = map[string]string{
-	"data:255ef4af-3a49-4382-a90d-6524bdee5ad1:battiti": "80",
-	"data:255ef4af-3a49-4382-a90d-6524bdee5ad1:peso":    "60",
-}
-
-func hostGet(data interface{}, callframe *wasmedge.CallingFrame, params []interface{}) ([]interface{}, wasmedge.Result) {
-	paramPointer := params[0].(int32)
-	paramLength := params[1].(int32)
-	mem := callframe.GetMemoryByIndex(0)
-
-	fmt.Println("paramPointer: ", paramPointer)
-	fmt.Println("paramLength: ", paramLength)
-	// Read the result of the function.
-	key, _ := mem.GetData(uint(paramPointer), uint(paramLength))
-
-	value := data.(map[string]string)["data:"+string(key)]
-
-	mallocFunc := callframe.GetModule().FindFunction("malloc")
-	resPtr, _ := callframe.GetExecutor().Invoke(mallocFunc, int32(len(value)+4))
-
-	memData, _ := mem.GetData(uint(resPtr[0].(int32)), uint(len(value)+4))
-	copy(memData[4:], value)
-	binary.LittleEndian.PutUint32(memData[:4], uint32(len(value)))
-
-	// Set the returns
-	returns := make([]interface{}, 1)
-	returns[0] = resPtr[0].(int32)
-
-	// Return
-	return returns, wasmedge.Result_Success
-}
+var client = redis.NewClient(&redis.Options{
+	Addr:     "redis:6379",                       // use default Addr
+	Password: "eYVX7EwVmmxKPCDmwMtyKVge8oLd2t81", // no password set
+	DB:       0,                                  // use default DB
+})
 
 func main() {
 	wasmedge.SetLogErrorLevel()
@@ -94,7 +69,7 @@ func main() {
 	// Developers should guarantee the life cycle of the data, and it can be
 	// `nil` if the external data is not needed.
 	// The last parameter can be 0 if developers do not need the cost measuring.
-	func_get := wasmedge.NewFunction(functype, hostGet, dataMap, 0)
+	func_get := wasmedge.NewFunction(functype, hostGet, nil, 0)
 
 	// If the function object is not added into an module instance object, it should be released.
 	functype.Release()

@@ -4,10 +4,10 @@
 	"name": "Ermes WASM test",
 
 	// Sets the run context to one level up instead of the .devcontainer folder.
-	"context": "..",
 
 	// Update the 'dockerFile' property if you aren't using the standard 'Dockerfile' filename.
-	"dockerFile": "./Dockerfile",
+    "dockerComposeFile": "docker-compose.yml",
+    service: "go",
 
 	"customizations": {
 		"vscode": {
