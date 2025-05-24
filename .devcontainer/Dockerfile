@@ -2,4 +2,4 @@ FROM golang:1.24
 
 ENV GOPRIVATE=github.com/jackorse
 
-RUN curl -sSf https://raw.githubusercontent.com/WasmEdge/WasmEdge/master/utils/install.sh | bash
+RUN curl -sSf https://raw.githubusercontent.com/WasmEdge/WasmEdge/master/utils/install.sh | bash -s -- -p /usr/local
