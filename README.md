@@ -1,33 +1,41 @@
 # Ermes wasm test
 
-This repo contains :
-- a devcontainer with all the requirements to run a WasmEdge runtime
-- an example of GO code that start a wasm runtime and execute a function, passing parameters and obtaining a result
+This repo contains a PoC that starts a WASM runtime and execute a WASM binary,
+exposing two host functions that are used in the wasm runtime.
+The host function performs GET and SET operations on a redis data store.
 
+## Requirements
+
+- [Golang](https://go.dev/dl/)
+- [WasmEdge](https://wasmedge.org/docs/start/install)
+- [Redis](https://redis.io/docs/latest/get-started/)
+
+It is recommended to use the provided DevContainer, which already satisfies all the requirements.
 
 ## How to use the devcontainer
+
 **Requirements:**
+
 - Docker
-- GoLand or VSCode with the devcontainers extension
+- GoLand or ~~VSCode with the DevContainers extension~~.
 
 ### How to use with GOLand
+
 1) Start Docker
 2) Open GoLand
-3) At this point
-    1) if you are in the splash screen, navigate to the DevContainer page
-    2) if you already have an opened project click on file -> remote development
-4) Click on 'new devcontainer'
-5) Select 'from VSC project' and past the link of this repo
-6) Click build (the first time it will take a while and may fail, just click on restart)
+3) Open this project (or clone the repo if not already done)
+4) A popup should ask to reopen the project in the container, click `reopen`
 
-When you have opened a local project, you can also manage devcontainers from the 'Services' tab
+You can also start the container by navigating to the `devcontainer.json` file
+and use the `Services` tab to manage existing containers.
+
+**Known issue**: This DevContainer starts a Docker Compose, and it seems that GoLand is not able 
+to stop it when the IDE is closed. You can stop it from the `Services` tab or from Docker Desktop
 
 ### How to use with VSCode
-1) start Docker
-2) Open the project in VSCode
-3) A popup should ask to reopen the project in the container, click 'Reopen'
-   ... Not tested yet, but should work ...
 
-## How to test
-Run `go run main` from the devcontainer terminal or use the provided GoLand run configuration.
-This will spawn a WasmEdge runtime, passing some random context, executes the `function.wasm` binary and obtain the result
+At the moment this DevContainer does not work with VSCode
+
+## How to run
+
+Run `go run main` from the DevContainers terminal or run the main function from GoLand.
