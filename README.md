@@ -12,7 +12,7 @@ The host function performs GET and SET operations on a redis data store.
 
 It is recommended to use the provided DevContainer, which already satisfies all the requirements.
 
-## How to use the devcontainer
+## How to use the DevContainer
 
 **Requirements:**
 

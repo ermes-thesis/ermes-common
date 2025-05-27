@@ -1,5 +1,4 @@
-// For format details, see https://aka.ms/devcontainer.json. For config options, see the README at:
-// https://github.com/microsoft/vscode-dev-containers/tree/v0.234.0/containers/docker-existing-dockerfile
+// For format details, see https://aka.ms/devcontainer.json.
 {
   "name": "Ermes WASM test",
   "dockerComposeFile": "docker-compose.yml",

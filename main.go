@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/redis/go-redis/v9"
 	"github.com/second-state/WasmEdge-go/wasmedge"
-	"os"
 	"strconv"
 	"time"
 )
@@ -23,40 +22,13 @@ func main() {
 
 	wasi := vm.GetImportModule(wasmedge.WASI)
 	wasi.InitWasi(
-		os.Args[1:],
-		os.Environ(),
-		[]string{".:."},
+		nil, // <- Qui si possono passare delle stringhe al runtime 🌵
+		nil,
+		[]string{".:./sandbox"}, // Il runtime può accedere solo alla cartella sandbox (o blocchiamo completamente?)
 	)
 
-	err := vm.LoadWasmFile("function.wasm")
-	if err != nil {
-		fmt.Println("failed to load wasm")
-	}
-	vm.Validate()
-
-	req := "{}"
-	lengthReq := len(req)
-
-	ctx := "{" +
-		"\"userId\": \"user\"," +
-		"\"groupToken\": [\"test\"]," +
-		"\"collections\": {" +
-		"\"test_collection\": [" +
-		"{" +
-		"\"CollectionId\": \"255ef4af-3a49-4382-a90d-6524bdee5ad1\"," +
-		"\"Metadata\": {" +
-		"\"name\": \"dati\"," +
-		"\"owner\": \"pippo\"," +
-		"\"created_at\": " + strconv.FormatInt(time.Now().UnixMilli(), 10) +
-		"}" +
-		"}" +
-		"]" +
-		"}" +
-		"}"
-	lengthCtx := len(ctx)
-
 	// Create the module instance with the module name "extern".
-	impmod := wasmedge.NewModule("extern")
+	externMod := wasmedge.NewModule("extern")
 
 	hostGetType := wasmedge.NewFunctionType(
 		[]*wasmedge.ValType{wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32()},
@@ -75,57 +47,104 @@ func main() {
 	hostGetFun := wasmedge.NewFunction(hostGetType, hostGet, nil, 0)
 	hostPutFun := wasmedge.NewFunction(hostPutType, hostPut, nil, 0)
 
-	// If the function object is not added into an module instance object, it should be released.
+	// If the function object is not added into a module instance object, it should be released.
 	hostGetType.Release()
 	hostPutType.Release()
-	impmod.AddFunction("HostGet", hostGetFun)
-	impmod.AddFunction("HostPut", hostPutFun)
+	externMod.AddFunction("HostGet", hostGetFun)
+	externMod.AddFunction("HostPut", hostPutFun)
 
-	err = vm.RegisterModule(impmod)
+	err := vm.RegisterModule(externMod)
 	if err != nil {
 		fmt.Println(err)
 		return
+	}
+
+	//A questo punto in teoria abbiamo il runtime pronto per caricare vari binari wasm e eseguire funzioni
+	err = executeWasmBinary(vm, "function.wasm")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	vm.Release()
+	conf.Release()
+}
+
+func getTestReqAndCtx() (string, string) {
+	req := "{\"prova\": \"ciao\"}"
+
+	ctx := "{" +
+		"\"userId\": \"user\"," +
+		"\"groupToken\": [\"test\"]," +
+		"\"collections\": {" +
+		"\"test_collection\": [" +
+		"{" +
+		"\"CollectionId\": \"255ef4af-3a49-4382-a90d-6524bdee5ad1\"," +
+		"\"Metadata\": {" +
+		"\"name\": \"dati\"," +
+		"\"owner\": \"pippo\"," +
+		"\"created_at\": " + strconv.FormatInt(time.Now().UnixMilli(), 10) +
+		"}" +
+		"}" +
+		"]" +
+		"}" +
+		"}"
+	return req, ctx
+}
+
+func executeWasmBinary(vm *wasmedge.VM, name string) error {
+	err := vm.LoadWasmFile(name)
+	if err != nil {
+		fmt.Println("Failed to load wasm", err)
+		return err
+	}
+
+	err = vm.Validate()
+	if err != nil {
+		fmt.Println("Validation failed", err)
+		return err
 	}
 
 	err = vm.Instantiate()
 	if err != nil {
-		fmt.Println(err)
-		return
+		fmt.Println("Instantiation failed", err)
+		return err
 	}
-	// Allocate memory for the request, and get a pointer to it.
-	allocateResultCtx, _ := vm.Execute("malloc", int32(lengthCtx))
-	ctxPointer := allocateResultCtx[0].(int32)
 
-	// Allocate memory for the context, and get a pointer to it.
-	allocateResultReq, _ := vm.Execute("malloc", int32(lengthReq))
-	reqPointer := allocateResultReq[0].(int32)
+	_, err = vm.Execute("_initialize")
+
+	req, ctx := getTestReqAndCtx()
+
+	// Allocate memory for the request and the context.
+	allocateResult, _ := vm.Execute("malloc", int32(len(req)+len(ctx)))
+	reqPointer := allocateResult[0].(int32)
 
 	// Write the request into the memory.
 	mod := vm.GetActiveModule()
 	mem := mod.FindMemory("memory")
-	memData2, _ := mem.GetData(uint(reqPointer), uint(lengthReq))
-	copy(memData2, req)
+	reqMemData, _ := mem.GetData(uint(reqPointer), uint(len(req)))
+	copy(reqMemData, req)
 
 	// Write the context into the memory.
-	memData, _ := mem.GetData(uint(ctxPointer), uint(lengthCtx))
-	copy(memData, ctx)
+	ctxMemData, _ := mem.GetData(uint(reqPointer)+uint(len(req)), uint(len(ctx)))
+	copy(ctxMemData, ctx)
 
-	// Run the `entry` function, passing the pointers and the length of the buffers.
-	greetResult, _ := vm.Execute("entry", reqPointer, int32(lengthReq), ctxPointer, int32(lengthCtx))
+	// Run the `entry` function, passing the request pointer and the length of the buffers.
+	greetResult, _ := vm.Execute("entry", reqPointer, int32(len(req)), int32(len(ctx)))
 	outputPointer := greetResult[0].(int32)
 
-	memData, _ = mem.GetData(uint(outputPointer), 8)
-	resultPointer := binary.LittleEndian.Uint32(memData[:4])
-	resultLength := binary.LittleEndian.Uint32(memData[4:])
+	ctxMemData, _ = mem.GetData(uint(outputPointer), 8)
+	resultPointer := binary.LittleEndian.Uint32(ctxMemData[:4])
+	resultLength := binary.LittleEndian.Uint32(ctxMemData[4:])
 
 	// Read the result of the function.
-	memData, _ = mem.GetData(uint(resultPointer), uint(resultLength))
-	fmt.Println(string(memData))
+	ctxMemData, _ = mem.GetData(uint(resultPointer), uint(resultLength))
+	fmt.Println(string(ctxMemData))
 
 	// Deallocate the buffers.
-	vm.Execute("free", reqPointer)
-	vm.Execute("free", ctxPointer)
-
-	vm.Release()
-	conf.Release()
+	_, err = vm.Execute("free", reqPointer)
+	if err != nil {
+		return err
+	}
+	return nil
 }
