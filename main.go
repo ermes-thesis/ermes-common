@@ -67,6 +67,7 @@ func main() {
 	}
 
 	//A questo punto in teoria abbiamo il runtime pronto per caricare vari binari wasm e eseguire funzioni
+	err = executeWasmAuthFunction(vm, "auth.wasm")
 	err = executeWasmBinary(vm, "function.wasm")
 	if err != nil {
 		fmt.Println(err)
@@ -154,6 +155,61 @@ func executeWasmBinary(vm *wasmedge.VM, name string) error {
 
 	// Deallocate the buffers.
 	_, err = vm.Execute("free", reqPointer)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func executeWasmAuthFunction(vm *wasmedge.VM, name string) error {
+	err := vm.LoadWasmFile(name)
+	if err != nil {
+		fmt.Println("Failed to load wasm", err)
+		return err
+	}
+
+	err = vm.Validate()
+	if err != nil {
+		fmt.Println("Validation failed", err)
+		return err
+	}
+
+	err = vm.Instantiate()
+	if err != nil {
+		fmt.Println("Instantiation failed", err)
+		return err
+	}
+
+	_, err = vm.Execute("_initialize")
+
+	authToken := "stringa_super_segreta"
+
+	// Allocate memory for the request and the context.
+	allocateResult, _ := vm.Execute("malloc", int32(len(authToken)))
+	authTokenPointer := allocateResult[0].(int32)
+
+	// Write the request into the memory.
+	mod := vm.GetActiveModule()
+	mem := mod.FindMemory("memory")
+	err = mem.SetData([]byte(authToken), uint(authTokenPointer), uint(len(authToken)))
+	if err != nil {
+		return err
+	}
+
+	// Run the `entry` function, passing the request pointer and the length of the buffers.
+	authResult, _ := vm.Execute("authEntry", authTokenPointer, int32(len(authToken)))
+	outputPointer := authResult[0].(int32)
+
+	outData, _ := mem.GetData(uint(outputPointer), 8)
+	resultPointer := binary.LittleEndian.Uint32(outData[:4])
+	resultLength := binary.LittleEndian.Uint32(outData[4:])
+
+	// Read the result of the function.
+	outData, _ = mem.GetData(uint(resultPointer), uint(resultLength))
+	fmt.Println(string(outData))
+
+	// Deallocate the buffers.
+	_, err = vm.Execute("free", authTokenPointer)
 	if err != nil {
 		return err
 	}
