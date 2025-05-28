@@ -17,7 +17,7 @@ It is recommended to use the provided DevContainer, which already satisfies all 
 **Requirements:**
 
 - Docker
-- GoLand or ~~VSCode with the DevContainers extension~~.
+- GoLand or VSCode with the DevContainers extension.
 
 ### How to use with GOLand
 
@@ -34,7 +34,9 @@ to stop it when the IDE is closed. You can stop it from the `Services` tab or fr
 
 ### How to use with VSCode
 
-At the moment this DevContainer does not work with VSCode
+1) Start Docker
+2) Open the project in VSCode
+3) A popup should ask to reopen the project in the container, click 'Reopen'
 
 ## How to run
 

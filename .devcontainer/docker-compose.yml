@@ -19,6 +19,7 @@ services:
       - seccomp:unconfined
     depends_on:
       - redis
+    command: sleep infinity
 
 volumes:
   redis:
