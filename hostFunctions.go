@@ -2,33 +2,63 @@ package main
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
+	"github.com/google/uuid"
 	"github.com/second-state/WasmEdge-go/wasmedge"
+	"slices"
+	"strings"
+)
+
+type errorCode uint8
+
+const (
+	SUCCESS errorCode = iota
+	UNAUTHORIZED
+	NOT_FOUND
+	REDIS_ERROR
 )
 
 func hostGet(data interface{}, callframe *wasmedge.CallingFrame, params []interface{}) ([]interface{}, wasmedge.Result) {
 	paramPointer := params[0].(int32)
 	paramLength := params[1].(int32)
-	mem := callframe.GetMemoryByIndex(0)
+	tokenPointer := params[2].(int32)
+	tokenLength := params[3].(int32)
+
+	wasmComponent := wasmComponents{
+		memory:     callframe.GetMemoryByIndex(0),
+		executor:   callframe.GetExecutor(),
+		mallocFunc: callframe.GetModule().FindFunction("malloc"),
+	}
+
+	var groupToken []string
+	err := wasmComponent.getWasmObject(tokenPointer, tokenLength, &groupToken)
 
 	fmt.Println("paramPointer: ", paramPointer)
 	fmt.Println("paramLength: ", paramLength)
 	// Read the result of the function.
-	key, _ := mem.GetData(uint(paramPointer), uint(paramLength))
+	key, err := wasmComponent.getWasmString(paramPointer, paramLength)
 
-	value, _ := client.Get(context.Background(), "data:"+string(key)).Result()
+	collId := strings.Split(key, ":")[0]
+	res, err := client.SMIsMember(context.Background(), "data:"+collId+":groups", groupToken).Result()
+	authorized := slices.Contains(res, true)
 
-	mallocFunc := callframe.GetModule().FindFunction("malloc")
-	resPtr, _ := callframe.GetExecutor().Invoke(mallocFunc, int32(len(value)+4))
-
-	memData, _ := mem.GetData(uint(resPtr[0].(int32)), uint(len(value)+4))
-	copy(memData[4:], value)
-	binary.LittleEndian.PutUint32(memData[:4], uint32(len(value)))
+	var resPtr any
+	if err != nil {
+		resPtr, _ = wasmComponent.writeError(REDIS_ERROR)
+	} else if !authorized {
+		resPtr, _ = wasmComponent.writeError(UNAUTHORIZED)
+	} else {
+		value, err := client.Get(context.Background(), "data:"+key).Result()
+		if err != nil {
+			resPtr, _ = wasmComponent.writeError(NOT_FOUND)
+		} else {
+			resPtr, _ = wasmComponent.writeResult(value)
+		}
+	}
 
 	// Set the returns
 	returns := make([]interface{}, 1)
-	returns[0] = resPtr[0].(int32)
+	returns[0] = resPtr.(int32)
 
 	// Return
 	return returns, wasmedge.Result_Success
@@ -39,16 +69,75 @@ func hostPut(data interface{}, callframe *wasmedge.CallingFrame, params []interf
 	nameLength := params[1].(int32)
 	valuePointer := params[2].(int32)
 	valueLength := params[3].(int32)
+	tokenPointer := params[4].(int32)
+	tokenLength := params[5].(int32)
 
-	mem := callframe.GetMemoryByIndex(0)
+	wasmComponent := wasmComponents{
+		memory:     callframe.GetMemoryByIndex(0),
+		executor:   callframe.GetExecutor(),
+		mallocFunc: callframe.GetModule().FindFunction("malloc"),
+	}
 
 	fmt.Println("namePointer: ", namePointer)
 	fmt.Println("nameLength: ", nameLength)
 
-	key, _ := mem.GetData(uint(namePointer), uint(nameLength))
-	value, _ := mem.GetData(uint(valuePointer), uint(valueLength))
+	var groupToken []string
+	err := wasmComponent.getWasmObject(tokenPointer, tokenLength, &groupToken)
+	key, _ := wasmComponent.getWasmString(namePointer, nameLength)
 
-	client.Set(context.Background(), "data:"+string(key), string(value), 0).Err()
+	collId := strings.Split(key, ":")[0]
+	res, err := client.SMIsMember(context.Background(), "data:"+collId+":groups", groupToken).Result()
+	authorized := slices.Contains(res, true)
 
-	return nil, wasmedge.Result_Success
+	returns := make([]interface{}, 1)
+	if !authorized {
+		returns[0] = int32(UNAUTHORIZED)
+	} else {
+		value, _ := wasmComponent.getWasmString(valuePointer, valueLength)
+
+		err = client.Set(context.Background(), "data:"+key, value, 0).Err()
+		if err != nil {
+			returns[0] = int32(REDIS_ERROR)
+		} else {
+			returns[0] = int32(SUCCESS)
+		}
+	}
+
+	return returns, wasmedge.Result_Success
+}
+
+func hostCreateCollection(data interface{}, callframe *wasmedge.CallingFrame, params []interface{}) ([]interface{}, wasmedge.Result) {
+	metadataPointer := params[0].(int32)
+	metadataLength := params[1].(int32)
+
+	wasmComponent := wasmComponents{
+		memory:     callframe.GetMemoryByIndex(0),
+		executor:   callframe.GetExecutor(),
+		mallocFunc: callframe.GetModule().FindFunction("malloc"),
+	}
+
+	var metadata map[string]any
+	err := wasmComponent.getWasmObject(metadataPointer, metadataLength, &metadata)
+
+	groups := metadata["groups"].([]any)
+	collectionId := uuid.NewString()
+	key := "data:" + collectionId + ":groups"
+
+	//TODO: mandare i metadati al cloud, che poi li manderà a sua volta al nodo con la geolocation specificata
+
+	err = client.SAdd(context.Background(), key, groups).Err()
+
+	var resPtr any
+	if err != nil {
+		resPtr, _ = wasmComponent.writeError(REDIS_ERROR)
+	} else {
+		resPtr, _ = wasmComponent.writeResult(collectionId)
+	}
+
+	// Set the returns
+	returns := make([]interface{}, 1)
+	returns[0] = resPtr.(int32)
+
+	// Return
+	return returns, wasmedge.Result_Success
 }

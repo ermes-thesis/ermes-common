@@ -31,12 +31,16 @@ func main() {
 	externMod := wasmedge.NewModule("extern")
 
 	hostGetType := wasmedge.NewFunctionType(
-		[]*wasmedge.ValType{wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32()},
+		[]*wasmedge.ValType{wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32()},
 		[]*wasmedge.ValType{wasmedge.NewValTypeI32()},
 	)
 	hostPutType := wasmedge.NewFunctionType(
-		[]*wasmedge.ValType{wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32()},
-		[]*wasmedge.ValType{},
+		[]*wasmedge.ValType{wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32()},
+		[]*wasmedge.ValType{wasmedge.NewValTypeI32()},
+	)
+	hostCreateCollectionType := wasmedge.NewFunctionType(
+		[]*wasmedge.ValType{wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32()},
+		[]*wasmedge.ValType{wasmedge.NewValTypeI32()},
 	)
 
 	// Create a function context with the function type and host function body.
@@ -46,12 +50,15 @@ func main() {
 	// The last parameter can be 0 if developers do not need the cost measuring.
 	hostGetFun := wasmedge.NewFunction(hostGetType, hostGet, nil, 0)
 	hostPutFun := wasmedge.NewFunction(hostPutType, hostPut, nil, 0)
+	hostCreateCollectionFun := wasmedge.NewFunction(hostCreateCollectionType, hostCreateCollection, nil, 0)
 
 	// If the function object is not added into a module instance object, it should be released.
 	hostGetType.Release()
 	hostPutType.Release()
-	externMod.AddFunction("HostGet", hostGetFun)
-	externMod.AddFunction("HostPut", hostPutFun)
+	hostCreateCollectionType.Release()
+	externMod.AddFunction("hostGet", hostGetFun)
+	externMod.AddFunction("hostPut", hostPutFun)
+	externMod.AddFunction("hostCreateCollection", hostCreateCollectionFun)
 
 	err := vm.RegisterModule(externMod)
 	if err != nil {
@@ -122,24 +129,28 @@ func executeWasmBinary(vm *wasmedge.VM, name string) error {
 	// Write the request into the memory.
 	mod := vm.GetActiveModule()
 	mem := mod.FindMemory("memory")
-	reqMemData, _ := mem.GetData(uint(reqPointer), uint(len(req)))
-	copy(reqMemData, req)
+	err = mem.SetData([]byte(req), uint(reqPointer), uint(len(req)))
+	if err != nil {
+		return err
+	}
 
 	// Write the context into the memory.
-	ctxMemData, _ := mem.GetData(uint(reqPointer)+uint(len(req)), uint(len(ctx)))
-	copy(ctxMemData, ctx)
+	err = mem.SetData([]byte(ctx), uint(reqPointer)+uint(len(req)), uint(len(ctx)))
+	if err != nil {
+		return err
+	}
 
 	// Run the `entry` function, passing the request pointer and the length of the buffers.
 	greetResult, _ := vm.Execute("entry", reqPointer, int32(len(req)), int32(len(ctx)))
 	outputPointer := greetResult[0].(int32)
 
-	ctxMemData, _ = mem.GetData(uint(outputPointer), 8)
-	resultPointer := binary.LittleEndian.Uint32(ctxMemData[:4])
-	resultLength := binary.LittleEndian.Uint32(ctxMemData[4:])
+	outData, _ := mem.GetData(uint(outputPointer), 8)
+	resultPointer := binary.LittleEndian.Uint32(outData[:4])
+	resultLength := binary.LittleEndian.Uint32(outData[4:])
 
 	// Read the result of the function.
-	ctxMemData, _ = mem.GetData(uint(resultPointer), uint(resultLength))
-	fmt.Println(string(ctxMemData))
+	outData, _ = mem.GetData(uint(resultPointer), uint(resultLength))
+	fmt.Println(string(outData))
 
 	// Deallocate the buffers.
 	_, err = vm.Execute("free", reqPointer)
