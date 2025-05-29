@@ -16,66 +16,66 @@ var client = redis.NewClient(&redis.Options{
 })
 
 func main() {
-	wasmedge.SetLogErrorLevel()
-	conf := wasmedge.NewConfigure(wasmedge.WASI)
-	vm := wasmedge.NewVMWithConfig(conf)
-
-	wasi := vm.GetImportModule(wasmedge.WASI)
-	wasi.InitWasi(
-		nil, // <- Qui si possono passare delle stringhe al runtime 🌵
-		nil,
-		[]string{".:./sandbox"}, // Il runtime può accedere solo alla cartella sandbox (o blocchiamo completamente?)
-	)
-
-	// Create the module instance with the module name "extern".
-	externMod := wasmedge.NewModule("extern")
-
-	hostGetType := wasmedge.NewFunctionType(
-		[]*wasmedge.ValType{wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32()},
-		[]*wasmedge.ValType{wasmedge.NewValTypeI32()},
-	)
-	hostPutType := wasmedge.NewFunctionType(
-		[]*wasmedge.ValType{wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32()},
-		[]*wasmedge.ValType{wasmedge.NewValTypeI32()},
-	)
-	hostCreateCollectionType := wasmedge.NewFunctionType(
-		[]*wasmedge.ValType{wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32()},
-		[]*wasmedge.ValType{wasmedge.NewValTypeI32()},
-	)
-
-	// Create a function context with the function type and host function body.
-	// The third parameter is the pointer to the additional data.
-	// Developers should guarantee the life cycle of the data, and it can be
-	// `nil` if the external data is not needed.
-	// The last parameter can be 0 if developers do not need the cost measuring.
-	hostGetFun := wasmedge.NewFunction(hostGetType, hostGet, nil, 0)
-	hostPutFun := wasmedge.NewFunction(hostPutType, hostPut, nil, 0)
-	hostCreateCollectionFun := wasmedge.NewFunction(hostCreateCollectionType, hostCreateCollection, nil, 0)
-
-	// If the function object is not added into a module instance object, it should be released.
-	hostGetType.Release()
-	hostPutType.Release()
-	hostCreateCollectionType.Release()
-	externMod.AddFunction("hostGet", hostGetFun)
-	externMod.AddFunction("hostPut", hostPutFun)
-	externMod.AddFunction("hostCreateCollection", hostCreateCollectionFun)
-
-	err := vm.RegisterModule(externMod)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	//A questo punto in teoria abbiamo il runtime pronto per caricare vari binari wasm e eseguire funzioni
-	err = executeWasmAuthFunction(vm, "auth.wasm")
-	err = executeWasmBinary(vm, "function.wasm")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	vm.Release()
-	conf.Release()
+	//wasmedge.SetLogErrorLevel()
+	//conf := wasmedge.NewConfigure(wasmedge.WASI)
+	//vm := wasmedge.NewVMWithConfig(conf)
+	//
+	//wasi := vm.GetImportModule(wasmedge.WASI)
+	//wasi.InitWasi(
+	//	nil, // <- Qui si possono passare delle stringhe al runtime 🌵
+	//	nil,
+	//	[]string{".:./sandbox"}, // Il runtime può accedere solo alla cartella sandbox (o blocchiamo completamente?)
+	//)
+	//
+	//// Create the module instance with the module name "extern".
+	//externMod := wasmedge.NewModule("extern")
+	//
+	//hostGetType := wasmedge.NewFunctionType(
+	//	[]*wasmedge.ValType{wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32()},
+	//	[]*wasmedge.ValType{wasmedge.NewValTypeI32()},
+	//)
+	//hostPutType := wasmedge.NewFunctionType(
+	//	[]*wasmedge.ValType{wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32()},
+	//	[]*wasmedge.ValType{wasmedge.NewValTypeI32()},
+	//)
+	//hostCreateCollectionType := wasmedge.NewFunctionType(
+	//	[]*wasmedge.ValType{wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32()},
+	//	[]*wasmedge.ValType{wasmedge.NewValTypeI32()},
+	//)
+	//
+	//// Create a function context with the function type and host function body.
+	//// The third parameter is the pointer to the additional data.
+	//// Developers should guarantee the life cycle of the data, and it can be
+	//// `nil` if the external data is not needed.
+	//// The last parameter can be 0 if developers do not need the cost measuring.
+	//hostGetFun := wasmedge.NewFunction(hostGetType, hostGet, nil, 0)
+	//hostPutFun := wasmedge.NewFunction(hostPutType, hostPut, nil, 0)
+	//hostCreateCollectionFun := wasmedge.NewFunction(hostCreateCollectionType, wasm.hostCreateCollection, nil, 0)
+	//
+	//// If the function object is not added into a module instance object, it should be released.
+	//hostGetType.Release()
+	//hostPutType.Release()
+	//hostCreateCollectionType.Release()
+	//externMod.AddFunction("hostGet", hostGetFun)
+	//externMod.AddFunction("hostPut", hostPutFun)
+	//externMod.AddFunction("hostCreateCollection", hostCreateCollectionFun)
+	//
+	//err := vm.RegisterModule(externMod)
+	//if err != nil {
+	//	fmt.Println(err)
+	//	return
+	//}
+	//
+	////A questo punto in teoria abbiamo il runtime pronto per caricare vari binari wasm e eseguire funzioni
+	//err = executeWasmAuthFunction(vm, "auth.wasm")
+	//err = executeWasmBinary(vm, "function.wasm")
+	//if err != nil {
+	//	fmt.Println(err)
+	//	return
+	//}
+	//
+	//vm.Release()
+	//conf.Release()
 }
 
 func getTestReqAndCtx() (string, string) {

@@ -1,4 +1,4 @@
-module main
+module github.com/ermes-thesis/ermes-wasm-test
 
 go 1.24
 

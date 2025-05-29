@@ -1,9 +1,10 @@
-package main
+package wasm
 
 import (
 	"context"
 	"fmt"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"github.com/second-state/WasmEdge-go/wasmedge"
 	"slices"
 	"strings"
@@ -23,6 +24,8 @@ func hostGet(data interface{}, callframe *wasmedge.CallingFrame, params []interf
 	paramLength := params[1].(int32)
 	tokenPointer := params[2].(int32)
 	tokenLength := params[3].(int32)
+
+	client := data.(*redis.Client)
 
 	wasmComponent := wasmComponents{
 		memory:     callframe.GetMemoryByIndex(0),
@@ -72,6 +75,8 @@ func hostPut(data interface{}, callframe *wasmedge.CallingFrame, params []interf
 	tokenPointer := params[4].(int32)
 	tokenLength := params[5].(int32)
 
+	client := data.(*redis.Client)
+
 	wasmComponent := wasmComponents{
 		memory:     callframe.GetMemoryByIndex(0),
 		executor:   callframe.GetExecutor(),
@@ -109,6 +114,8 @@ func hostPut(data interface{}, callframe *wasmedge.CallingFrame, params []interf
 func hostCreateCollection(data interface{}, callframe *wasmedge.CallingFrame, params []interface{}) ([]interface{}, wasmedge.Result) {
 	metadataPointer := params[0].(int32)
 	metadataLength := params[1].(int32)
+
+	client := data.(*redis.Client)
 
 	wasmComponent := wasmComponents{
 		memory:     callframe.GetMemoryByIndex(0),
