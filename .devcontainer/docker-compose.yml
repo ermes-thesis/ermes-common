@@ -1,3 +1,4 @@
+name: "ermes_wasm_test"
 services:
   redis:
     image: redis:latest
