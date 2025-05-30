@@ -1,4 +1,5 @@
-name: "ermes_wasm_test"
+name: ermes-wasm-test
+
 services:
   redis:
     image: redis:latest
@@ -7,6 +8,8 @@ services:
     command: redis-server --save 20 1 --loglevel warning --requirepass eYVX7EwVmmxKPCDmwMtyKVge8oLd2t81
     volumes:
       - redis:/data
+    networks:
+      - dev-net
 
   go:
     build:
@@ -14,14 +17,27 @@ services:
       dockerfile: Dockerfile
     volumes:
       - ..:/workspaces/ermes-wasm-test:cached
+      - gocache:/go/pkg/mod  # Go module cache persistente
+      - gocachebin:/root/.cache/go-build # cache di compilazione
     cap_add:
       - SYS_PTRACE
     security_opt:
       - seccomp:unconfined
     depends_on:
       - redis
+    working_dir: /workspaces/ermes-wasm-test
     command: sleep infinity
+    networks:
+      - dev-net
 
 volumes:
   redis:
     driver: local
+  gocache:
+    driver: local
+  gocachebin:
+    driver: local
+
+networks:
+  dev-net:
+    attachable: true
