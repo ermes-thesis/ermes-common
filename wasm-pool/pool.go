@@ -44,35 +44,38 @@ func (p *ExecutorPool) RegisterHostFns(redisClient *redis.Client) {
 		// Create the module instance with the module name "extern".
 		externMod := wasmedge.NewModule("extern")
 
-		hostGetType := wasmedge.NewFunctionType(
+		fnTwoParamOneReturnType := wasmedge.NewFunctionType(
 			[]*wasmedge.ValType{wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32()},
 			[]*wasmedge.ValType{wasmedge.NewValTypeI32()},
 		)
-		hostPutType := wasmedge.NewFunctionType(
+		fnThreeParamOneReturnType := wasmedge.NewFunctionType(
 			[]*wasmedge.ValType{wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32()},
 			[]*wasmedge.ValType{wasmedge.NewValTypeI32()},
 		)
-		hostCreateCollectionType := wasmedge.NewFunctionType(
+		fnOneParamOneReturnType := wasmedge.NewFunctionType(
 			[]*wasmedge.ValType{wasmedge.NewValTypeI32(), wasmedge.NewValTypeI32()},
 			[]*wasmedge.ValType{wasmedge.NewValTypeI32()},
 		)
-
 		// Create a function context with the function type and host function body.
 		// The third parameter is the pointer to the additional data.
 		// Developers should guarantee the life cycle of the data, and it can be
 		// `nil` if the external data is not needed.
 		// The last parameter can be 0 if developers do not need the cost measuring.
-		hostGetFun := wasmedge.NewFunction(hostGetType, hostGet, redisClient, 0)
-		hostPutFun := wasmedge.NewFunction(hostPutType, hostPut, redisClient, 0)
-		hostCreateCollectionFun := wasmedge.NewFunction(hostCreateCollectionType, hostCreateCollection, redisClient, 0)
+		hostGetFun := wasmedge.NewFunction(fnTwoParamOneReturnType, hostGet, redisClient, 0)
+		hostPutFun := wasmedge.NewFunction(fnThreeParamOneReturnType, hostPut, redisClient, 0)
+		hostCreateCollectionFun := wasmedge.NewFunction(fnOneParamOneReturnType, hostCreateCollection, redisClient, 0)
+		hostDeleteCollectionFun := wasmedge.NewFunction(fnOneParamOneReturnType, hostDeleteCollection, redisClient, 0)
+		hostRemoveUserFromGroupFun := wasmedge.NewFunction(fnTwoParamOneReturnType, hostRemoveUserFromGroup, nil, 0)
 
 		// If the function object is not added into a module instance object, it should be released.
-		hostGetType.Release()
-		hostPutType.Release()
-		hostCreateCollectionType.Release()
+		fnTwoParamOneReturnType.Release()
+		fnThreeParamOneReturnType.Release()
+		fnOneParamOneReturnType.Release()
 		externMod.AddFunction("hostGet", hostGetFun)
 		externMod.AddFunction("hostPut", hostPutFun)
 		externMod.AddFunction("hostCreateCollection", hostCreateCollectionFun)
+		externMod.AddFunction("hostDeleteCollection", hostDeleteCollectionFun)
+		externMod.AddFunction("hostRemoveUserFromGroup", hostRemoveUserFromGroupFun)
 
 		err := executor.vm.RegisterModule(externMod)
 		if err != nil {
