@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"github.com/second-state/WasmEdge-go/wasmedge"
+	"log"
 )
 
 type wasmComponents struct {
@@ -23,9 +24,16 @@ func (wasmComponent *wasmComponents) getWasmObject(ptr int32, len int32, result 
 	return err
 }
 
-func (wasmComponent *wasmComponents) writeError(err errorCode) (any, error) {
-	resPtr, _ := wasmComponent.executor.Invoke(wasmComponent.mallocFunc, int32(1))
-	return resPtr[0], wasmComponent.memory.SetData([]byte{byte(err)}, uint(resPtr[0].(int32)), uint(1))
+func (wasmComponent *wasmComponents) writeError(error errorCode) any {
+	resPtr, err := wasmComponent.executor.Invoke(wasmComponent.mallocFunc, int32(1))
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = wasmComponent.memory.SetData([]byte{byte(error)}, uint(resPtr[0].(int32)), uint(1))
+	if err != nil {
+		log.Fatal(err)
+	}
+	return resPtr[0]
 }
 
 func (wasmComponent *wasmComponents) writeResult(value string) (any, error) {
