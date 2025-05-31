@@ -64,7 +64,7 @@ func (p *ExecutorPool) RegisterHostFns(redisClient *redis.Client) {
 		// The last parameter can be 0 if developers do not need the cost measuring.
 		hostGetFun := wasmedge.NewFunction(hostGetType, hostGet, redisClient, 0)
 		hostPutFun := wasmedge.NewFunction(hostPutType, hostPut, redisClient, 0)
-		hostCreateCollectionFun := wasmedge.NewFunction(hostCreateCollectionType, hostCreateCollection, nil, 0)
+		hostCreateCollectionFun := wasmedge.NewFunction(hostCreateCollectionType, hostCreateCollection, redisClient, 0)
 
 		// If the function object is not added into a module instance object, it should be released.
 		hostGetType.Release()
@@ -103,9 +103,7 @@ func (p *ExecutorPool) Close() {
 
 	for _, executor := range p.instances {
 		executor.mu.Lock()
-		defer executor.mu.Unlock()
-
 		executor.vm.Release()
-
+		executor.mu.Unlock()
 	}
 }
