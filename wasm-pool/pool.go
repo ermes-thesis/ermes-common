@@ -65,7 +65,10 @@ func (p *ExecutorPool) RegisterHostFns(redisClient *redis.Client) {
 		hostPutFun := wasmedge.NewFunction(fnThreeParamOneReturnType, hostPut, redisClient, 0)
 		hostCreateCollectionFun := wasmedge.NewFunction(fnOneParamOneReturnType, hostCreateCollection, redisClient, 0)
 		hostDeleteCollectionFun := wasmedge.NewFunction(fnOneParamOneReturnType, hostDeleteCollection, redisClient, 0)
+		hostAddUserToGroupFun := wasmedge.NewFunction(fnTwoParamOneReturnType, hostAddUserToGroup, nil, 0)
 		hostRemoveUserFromGroupFun := wasmedge.NewFunction(fnTwoParamOneReturnType, hostRemoveUserFromGroup, nil, 0)
+		hostCreateGroupFun := wasmedge.NewFunction(fnTwoParamOneReturnType, hostCreateGroup, nil, 0)
+		hostDeleteGroupFun := wasmedge.NewFunction(fnOneParamOneReturnType, hostDeleteGroup, nil, 0)
 
 		// If the function object is not added into a module instance object, it should be released.
 		fnTwoParamOneReturnType.Release()
@@ -75,7 +78,10 @@ func (p *ExecutorPool) RegisterHostFns(redisClient *redis.Client) {
 		externMod.AddFunction("hostPut", hostPutFun)
 		externMod.AddFunction("hostCreateCollection", hostCreateCollectionFun)
 		externMod.AddFunction("hostDeleteCollection", hostDeleteCollectionFun)
+		externMod.AddFunction("hostAddUserToGroup", hostAddUserToGroupFun)
 		externMod.AddFunction("hostRemoveUserFromGroup", hostRemoveUserFromGroupFun)
+		externMod.AddFunction("hostCreateGroup", hostCreateGroupFun)
+		externMod.AddFunction("hostDeleteGroup", hostDeleteGroupFun)
 
 		err := executor.vm.RegisterModule(externMod)
 		if err != nil {

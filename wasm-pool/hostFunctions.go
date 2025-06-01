@@ -241,7 +241,7 @@ func hostRemoveUserFromGroup(data interface{}, callframe *wasmedge.CallingFrame,
 	}
 	groupName, err := wasmComponent.getWasmString(groupNamePtr, groupNameLength)
 
-	get, err := http.Get("localhost:3000/remove-from-group?group=" + groupName + "&user=" + userId)
+	get, err := http.Get("http://host.docker.internal:3000/remove-from-group?group=" + groupName + "&userId=" + userId)
 	if err != nil {
 		returns[0] = wasmComponent.writeError(HTTP_ERROR)
 		return returns, wasmedge.Result_Success
@@ -261,16 +261,111 @@ func hostRemoveUserFromGroup(data interface{}, callframe *wasmedge.CallingFrame,
 }
 
 func hostAddUserToGroup(data interface{}, callframe *wasmedge.CallingFrame, params []interface{}) ([]interface{}, wasmedge.Result) {
-	//TODO: Implement
-	return nil, wasmedge.Result_Success
+	userIdPtr := params[0].(int32)
+	userIdLength := params[1].(int32)
+	groupNamePtr := params[2].(int32)
+	groupNameLength := params[3].(int32)
+
+	wasmComponent := wasmComponents{
+		memory:     callframe.GetMemoryByIndex(0),
+		executor:   callframe.GetExecutor(),
+		mallocFunc: callframe.GetModule().FindFunction("malloc"),
+	}
+
+	returns := make([]interface{}, 1)
+	userId, err := wasmComponent.getWasmString(userIdPtr, userIdLength)
+	if err != nil {
+		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR)
+		return returns, wasmedge.Result_Success
+	}
+	groupName, err := wasmComponent.getWasmString(groupNamePtr, groupNameLength)
+
+	get, err := http.Get("http://host.docker.internal:3000/add-to-group?group=" + groupName + "&userId=" + userId)
+	if err != nil {
+		returns[0] = wasmComponent.writeError(HTTP_ERROR)
+		return returns, wasmedge.Result_Success
+	}
+
+	switch get.StatusCode {
+	case 200:
+		returns[0] = wasmComponent.writeError(SUCCESS)
+		return returns, wasmedge.Result_Success
+	case 500:
+		returns[0] = wasmComponent.writeError(HTTP_INTERNAL_SERVER_ERROR)
+		return returns, wasmedge.Result_Success
+	default:
+		returns[0] = wasmComponent.writeError(HTTP_ERROR)
+		return returns, wasmedge.Result_Success
+	}
 }
 
 func hostCreateGroup(data interface{}, callframe *wasmedge.CallingFrame, params []interface{}) ([]interface{}, wasmedge.Result) {
-	//TODO: Implement
-	return nil, wasmedge.Result_Success
+	groupNamePtr := params[0].(int32)
+	groupNameLength := params[1].(int32)
+	partecipantIDsJsonPtr := params[2].(int32)
+	partecipantIDsJsonLength := params[3].(int32)
+
+	wasmComponent := wasmComponents{
+		memory:     callframe.GetMemoryByIndex(0),
+		executor:   callframe.GetExecutor(),
+		mallocFunc: callframe.GetModule().FindFunction("malloc"),
+	}
+
+	returns := make([]interface{}, 1)
+	partecipantIDsJsonStr, err := wasmComponent.getWasmString(partecipantIDsJsonPtr, partecipantIDsJsonLength)
+	if err != nil {
+		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR)
+		return returns, wasmedge.Result_Success
+	}
+	groupName, err := wasmComponent.getWasmString(groupNamePtr, groupNameLength)
+
+	get, err := http.Get("http://host.docker.internal:3000/create-group?group=" + groupName + "&partecipants=" + partecipantIDsJsonStr)
+	if err != nil {
+		returns[0] = wasmComponent.writeError(HTTP_ERROR)
+		return returns, wasmedge.Result_Success
+	}
+
+	switch get.StatusCode {
+	case 200:
+		returns[0] = wasmComponent.writeError(SUCCESS)
+		return returns, wasmedge.Result_Success
+	case 500:
+		returns[0] = wasmComponent.writeError(HTTP_INTERNAL_SERVER_ERROR)
+		return returns, wasmedge.Result_Success
+	default:
+		returns[0] = wasmComponent.writeError(HTTP_ERROR)
+		return returns, wasmedge.Result_Success
+	}
 }
 
 func hostDeleteGroup(data interface{}, callframe *wasmedge.CallingFrame, params []interface{}) ([]interface{}, wasmedge.Result) {
-	//TODO: Implement
-	return nil, wasmedge.Result_Success
+	groupNamePtr := params[0].(int32)
+	groupNameLength := params[1].(int32)
+
+	wasmComponent := wasmComponents{
+		memory:     callframe.GetMemoryByIndex(0),
+		executor:   callframe.GetExecutor(),
+		mallocFunc: callframe.GetModule().FindFunction("malloc"),
+	}
+
+	returns := make([]interface{}, 1)
+	groupName, err := wasmComponent.getWasmString(groupNamePtr, groupNameLength)
+
+	get, err := http.Get("http://host.docker.internal:3000/delete-group?group=" + groupName)
+	if err != nil {
+		returns[0] = wasmComponent.writeError(HTTP_ERROR)
+		return returns, wasmedge.Result_Success
+	}
+
+	switch get.StatusCode {
+	case 200:
+		returns[0] = wasmComponent.writeError(SUCCESS)
+		return returns, wasmedge.Result_Success
+	case 500:
+		returns[0] = wasmComponent.writeError(HTTP_INTERNAL_SERVER_ERROR)
+		return returns, wasmedge.Result_Success
+	default:
+		returns[0] = wasmComponent.writeError(HTTP_ERROR)
+		return returns, wasmedge.Result_Success
+	}
 }
