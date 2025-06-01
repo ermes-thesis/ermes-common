@@ -55,7 +55,7 @@
           </option>
           <option name="configurationFiles">
             <list>
-              <option value="C:\Users\giaco\Desktop\ermes-wasm-test\.devcontainer\docker-compose.yml" />
+              <option value="C:\Users\lucat\Desktop\ermes-wasm-test\.devcontainer\docker-compose.yml" />
             </list>
           </option>
           <option name="projectName" value="ermes-wasm-test" />
