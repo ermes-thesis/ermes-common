@@ -51,7 +51,7 @@ func hostGet(data interface{}, callframe *wasmedge.CallingFrame, params []interf
 		return returns, wasmedge.Result_Success
 	}
 
-	collId := strings.Split(key, ":")[0]
+	collId := strings.Split(key, ":")[1]
 	res, err := client.SMIsMember(context.Background(), "data:"+collId+":groups", groupToken).Result()
 	authorized := slices.Contains(res, true)
 
@@ -61,7 +61,7 @@ func hostGet(data interface{}, callframe *wasmedge.CallingFrame, params []interf
 	} else if !authorized {
 		resPtr = wasmComponent.writeError(UNAUTHORIZED)
 	} else {
-		value, err := client.Get(context.Background(), "data:"+key).Result()
+		value, err := client.Get(context.Background(), key).Result()
 		if err != nil {
 			resPtr = wasmComponent.writeError(NOT_FOUND)
 		} else {
@@ -109,7 +109,7 @@ func hostPut(data interface{}, callframe *wasmedge.CallingFrame, params []interf
 		return returns, wasmedge.Result_Success
 	}
 
-	collId := strings.Split(key, ":")[0]
+	collId := strings.Split(key, ":")[1]
 	res, err := client.SMIsMember(context.Background(), "data:"+collId+":groups", groupToken).Result()
 	if err != nil {
 		returns[0] = wasmComponent.writeError(REDIS_ERROR)
@@ -126,7 +126,7 @@ func hostPut(data interface{}, callframe *wasmedge.CallingFrame, params []interf
 			returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR)
 			return returns, wasmedge.Result_Success
 		}
-		err = client.Set(context.Background(), "data:"+key, value, 0).Err()
+		err = client.Set(context.Background(), key, value, 0).Err()
 		if err != nil {
 			returns[0] = wasmComponent.writeError(REDIS_ERROR)
 		} else {
@@ -157,7 +157,7 @@ func hostDelete(data interface{}, callframe *wasmedge.CallingFrame, params []int
 	// Read the result of the function.
 	key, err := wasmComponent.getWasmString(paramPointer, paramLength)
 
-	collId := strings.Split(key, ":")[0]
+	collId := strings.Split(key, ":")[1]
 	res, err := client.SMIsMember(context.Background(), "data:"+collId+":groups", groupToken).Result()
 	authorized := slices.Contains(res, true)
 
@@ -167,7 +167,7 @@ func hostDelete(data interface{}, callframe *wasmedge.CallingFrame, params []int
 	} else if !authorized {
 		resPtr = wasmComponent.writeError(UNAUTHORIZED)
 	} else {
-		err = client.Del(context.Background(), "data:"+key).Err()
+		err = client.Del(context.Background(), key).Err()
 		if err != nil {
 			resPtr = wasmComponent.writeError(NOT_FOUND)
 		} else {
