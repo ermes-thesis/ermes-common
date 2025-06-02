@@ -1,8 +1,17 @@
-# Ermes wasm test
+# Ermes WASM pool
 
-This repo contains a PoC that starts a WASM runtime and execute a WASM binary,
-exposing two host functions that are used in the wasm runtime.
-The host function performs GET and SET operations on a redis data store.
+This library allows to create a pool of WASM runtimes which can execute WASM binaries.
+The WASM binaries can export two type of functions:
+
+- Authentication function: it receives a token (string) and returns a user identifier (string)
+- Regular function: it receives the http request body (map string, string) and the Ermes Context,
+  and returns an http code and a response body
+
+To execute regular function, this library also expose some Host Functions that can be used in the WASM runtime.
+The host function performs GET and SET operations on the redis data store and HTTP requests to the Central repository.
+
+This repo also contains a PoC that starts a WASM runtime and execute an auth function and a function that performs
+operation on some collections.
 
 ## Requirements
 
