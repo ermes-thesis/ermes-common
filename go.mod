@@ -1,10 +1,10 @@
-module github.com/ermes-thesis/ermes-wasm-test
+module github.com/ermes-thesis/ermes-wasm-pool
 
 go 1.24
 
 require (
 	github.com/google/uuid v1.6.0
-	github.com/redis/go-redis/v9 v9.8.0
+	github.com/redis/go-redis/v9 v9.9.0
 	github.com/second-state/WasmEdge-go v0.14.0
 )
 

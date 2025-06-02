@@ -1,4 +1,4 @@
-name: ermes-wasm-test
+name: ermes-wasm-pool
 
 services:
   redis:
@@ -16,7 +16,7 @@ services:
       context: .
       dockerfile: Dockerfile
     volumes:
-      - ..:/workspaces/ermes-wasm-test:cached
+      - ..:/workspaces/ermes-wasm-pool:cached
       - gocache:/go/pkg/mod  # Go module cache persistente
       - gocachebin:/root/.cache/go-build # cache di compilazione
     cap_add:
@@ -25,7 +25,7 @@ services:
       - seccomp:unconfined
     depends_on:
       - redis
-    working_dir: /workspaces/ermes-wasm-test
+    working_dir: /workspaces/ermes-wasm-pool
     command: sleep infinity
     networks:
       - dev-net

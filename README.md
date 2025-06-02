@@ -36,9 +36,9 @@ The first time you run the `Run in new container` you need to setup the run targ
 1) Click on `Run in new container` and select `Edit configurations`
 2) In the `Run on` menù, select `Create new target` > `Docker compose`
 3) Select as configuration file the file `.devcontainer/docker-compose.yml`
-4) Select the `go` service and insert the project name `ermes-wasm-test`
+4) Select the `go` service and insert the project name `ermes-wasm-pool`
 5) Click `next` two times
-6) In the `Additional Setting` section, in `Project sources directory` write `/workspaces/ermes-wasm-test`
+6) In the `Additional Setting` section, in `Project sources directory` write `/workspaces/ermes-wasm-pool`
 7) Click `build`
 8) Click `Manage targets` and rename the new target as `Compose`
 

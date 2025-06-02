@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Run in new container" type="GoApplicationRunConfiguration" factoryName="Go Application">
-    <module name="ermes-wasm-test" />
+    <module name="ermes-wasm-pool" />
     <target name="Compose" />
     <working_directory value="$PROJECT_DIR$" />
     <kind value="DIRECTORY" />

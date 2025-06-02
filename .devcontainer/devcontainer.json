@@ -1,10 +1,10 @@
 // For format details, see https://aka.ms/devcontainer.json.
 {
-  "name": "Ermes WASM test",
+  "name": "Ermes WASM pool",
   "dockerComposeFile": "docker-compose.yml",
   "service": "go",
   "shutdownAction": "stopCompose",
-  "workspaceFolder": "/workspaces/ermes-wasm-test",
+  "workspaceFolder": "/workspaces/ermes-wasm-pool",
   "customizations": {
     "vscode": {
       "settings": {},

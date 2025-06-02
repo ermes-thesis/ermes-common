@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/ermes-thesis/ermes-wasm-test/wasm-pool"
+	"github.com/ermes-thesis/ermes-wasm-pool/wasm-pool"
 	"github.com/redis/go-redis/v9"
 	"strconv"
 	"time"
