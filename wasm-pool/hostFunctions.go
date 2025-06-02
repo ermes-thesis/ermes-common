@@ -2,7 +2,6 @@ package wasm
 
 import (
 	"context"
-	"fmt"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/second-state/WasmEdge-go/wasmedge"
@@ -40,8 +39,6 @@ func hostGet(data interface{}, callframe *wasmedge.CallingFrame, params []interf
 	var groupToken []string
 	err := wasmComponent.getWasmObject(tokenPointer, tokenLength, &groupToken)
 
-	fmt.Println("paramPointer: ", paramPointer)
-	fmt.Println("paramLength: ", paramLength)
 	// Read the result of the function.
 	key, err := wasmComponent.getWasmString(paramPointer, paramLength)
 
@@ -90,9 +87,6 @@ func hostPut(data interface{}, callframe *wasmedge.CallingFrame, params []interf
 		mallocFunc: callframe.GetModule().FindFunction("malloc"),
 	}
 
-	fmt.Println("namePointer: ", namePointer)
-	fmt.Println("nameLength: ", nameLength)
-
 	returns := make([]interface{}, 1)
 	var groupToken []string
 	err := wasmComponent.getWasmObject(tokenPointer, tokenLength, &groupToken)
@@ -132,6 +126,52 @@ func hostPut(data interface{}, callframe *wasmedge.CallingFrame, params []interf
 		}
 	}
 
+	return returns, wasmedge.Result_Success
+}
+
+func hostDelete(data interface{}, callframe *wasmedge.CallingFrame, params []interface{}) ([]interface{}, wasmedge.Result) {
+	paramPointer := params[0].(int32)
+	paramLength := params[1].(int32)
+	tokenPointer := params[2].(int32)
+	tokenLength := params[3].(int32)
+
+	client := data.(*redis.Client)
+
+	wasmComponent := wasmComponents{
+		memory:     callframe.GetMemoryByIndex(0),
+		executor:   callframe.GetExecutor(),
+		mallocFunc: callframe.GetModule().FindFunction("malloc"),
+	}
+
+	var groupToken []string
+	err := wasmComponent.getWasmObject(tokenPointer, tokenLength, &groupToken)
+
+	// Read the result of the function.
+	key, err := wasmComponent.getWasmString(paramPointer, paramLength)
+
+	collId := strings.Split(key, ":")[0]
+	res, err := client.SMIsMember(context.Background(), "data:"+collId+":groups", groupToken).Result()
+	authorized := slices.Contains(res, true)
+
+	var resPtr any
+	if err != nil {
+		resPtr = wasmComponent.writeError(REDIS_ERROR)
+	} else if !authorized {
+		resPtr = wasmComponent.writeError(UNAUTHORIZED)
+	} else {
+		err = client.Del(context.Background(), "data:"+key).Err()
+		if err != nil {
+			resPtr = wasmComponent.writeError(NOT_FOUND)
+		} else {
+			resPtr = wasmComponent.writeError(SUCCESS)
+		}
+	}
+
+	// Set the returns
+	returns := make([]interface{}, 1)
+	returns[0] = resPtr.(int32)
+
+	// Return
 	return returns, wasmedge.Result_Success
 }
 

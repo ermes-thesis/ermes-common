@@ -63,6 +63,7 @@ func (p *ExecutorPool) RegisterHostFns(redisClient *redis.Client) {
 		// The last parameter can be 0 if developers do not need the cost measuring.
 		hostGetFun := wasmedge.NewFunction(fnTwoParamOneReturnType, hostGet, redisClient, 0)
 		hostPutFun := wasmedge.NewFunction(fnThreeParamOneReturnType, hostPut, redisClient, 0)
+		hostDelFun := wasmedge.NewFunction(fnTwoParamOneReturnType, hostDelete, redisClient, 0)
 		hostCreateCollectionFun := wasmedge.NewFunction(fnOneParamOneReturnType, hostCreateCollection, redisClient, 0)
 		hostDeleteCollectionFun := wasmedge.NewFunction(fnOneParamOneReturnType, hostDeleteCollection, redisClient, 0)
 		hostAddUserToGroupFun := wasmedge.NewFunction(fnTwoParamOneReturnType, hostAddUserToGroup, nil, 0)
@@ -76,6 +77,7 @@ func (p *ExecutorPool) RegisterHostFns(redisClient *redis.Client) {
 		fnOneParamOneReturnType.Release()
 		externMod.AddFunction("hostGet", hostGetFun)
 		externMod.AddFunction("hostPut", hostPutFun)
+		externMod.AddFunction("hostDelete", hostDelFun)
 		externMod.AddFunction("hostCreateCollection", hostCreateCollectionFun)
 		externMod.AddFunction("hostDeleteCollection", hostDeleteCollectionFun)
 		externMod.AddFunction("hostAddUserToGroup", hostAddUserToGroupFun)
