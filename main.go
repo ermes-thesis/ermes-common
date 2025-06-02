@@ -23,7 +23,7 @@ func main() {
 	executor := pool.Acquire()
 	defer executor.Release()
 
-	userdId, code := executor.InvokeAuthFn("auth", "token")
+	userdId, code := executor.InvokeAuthFn("auth_function", "token")
 	fmt.Println("Auth function:", userdId, code)
 
 	req, ctx := getTestReqAndCtx()
@@ -36,7 +36,7 @@ func getTestReqAndCtx() (string, string) {
 
 	ctx := "{" +
 		"\"userId\": \"user\"," +
-		"\"groupToken\": [\"test\"]," +
+		"\"groupList\": [\"test\"]," +
 		"\"collections\": {" +
 		"\"test_collection\": [" +
 		"{" +
