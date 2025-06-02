@@ -36,11 +36,20 @@ func hostGet(data interface{}, callframe *wasmedge.CallingFrame, params []interf
 		mallocFunc: callframe.GetModule().FindFunction("malloc"),
 	}
 
+	returns := make([]interface{}, 1)
 	var groupToken []string
 	err := wasmComponent.getWasmObject(tokenPointer, tokenLength, &groupToken)
+	if err != nil {
+		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR)
+		return returns, wasmedge.Result_Success
+	}
 
 	// Read the result of the function.
 	key, err := wasmComponent.getWasmString(paramPointer, paramLength)
+	if err != nil {
+		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR)
+		return returns, wasmedge.Result_Success
+	}
 
 	collId := strings.Split(key, ":")[0]
 	res, err := client.SMIsMember(context.Background(), "data:"+collId+":groups", groupToken).Result()
@@ -64,7 +73,6 @@ func hostGet(data interface{}, callframe *wasmedge.CallingFrame, params []interf
 	}
 
 	// Set the returns
-	returns := make([]interface{}, 1)
 	returns[0] = resPtr.(int32)
 
 	// Return

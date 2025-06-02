@@ -42,6 +42,7 @@ func getTestReqAndCtx() (string, string) {
 		"{" +
 		"\"CollectionId\": \"255ef4af-3a49-4382-a90d-6524bdee5ad1\"," +
 		"\"Metadata\": {" +
+		"\"consistency\": 1," +
 		"\"name\": \"dati\"," +
 		"\"owner\": \"pippo\"," +
 		"\"created_at\": " + strconv.FormatInt(time.Now().UnixMilli(), 10) +
