@@ -2,6 +2,7 @@ package wasm
 
 import (
 	"context"
+	"errors"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/second-state/WasmEdge-go/wasmedge"
@@ -10,17 +11,22 @@ import (
 	"strings"
 )
 
-type errorCode uint8
+type responseCode uint8
 
 const (
-	SUCCESS errorCode = iota
+	SUCCESS responseCode = iota
 	UNAUTHORIZED
 	NOT_FOUND
 	REDIS_ERROR
 	WASM_RUNTIME_ERROR
 	HTTP_ERROR
-	HTTP_INTERNAL_SERVER_ERROR
+	CENTRAL_REPO_ERROR
 )
+
+type wasmHostFunctionResponse struct {
+	Code    responseCode
+	Message string
+}
 
 func hostGet(data interface{}, callframe *wasmedge.CallingFrame, params []interface{}) ([]interface{}, wasmedge.Result) {
 	paramPointer := params[0].(int32)
@@ -40,14 +46,14 @@ func hostGet(data interface{}, callframe *wasmedge.CallingFrame, params []interf
 	var groupToken []string
 	err := wasmComponent.getWasmObject(tokenPointer, tokenLength, &groupToken)
 	if err != nil {
-		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR)
+		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
 		return returns, wasmedge.Result_Success
 	}
 
 	// Read the result of the function.
 	key, err := wasmComponent.getWasmString(paramPointer, paramLength)
 	if err != nil {
-		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR)
+		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
 		return returns, wasmedge.Result_Success
 	}
 
@@ -57,18 +63,15 @@ func hostGet(data interface{}, callframe *wasmedge.CallingFrame, params []interf
 
 	var resPtr any
 	if err != nil {
-		resPtr = wasmComponent.writeError(REDIS_ERROR)
+		resPtr = wasmComponent.writeError(REDIS_ERROR, err)
 	} else if !authorized {
-		resPtr = wasmComponent.writeError(UNAUTHORIZED)
+		resPtr = wasmComponent.writeError(UNAUTHORIZED, errors.New("current user is not authorized"))
 	} else {
 		value, err := client.Get(context.Background(), key).Result()
 		if err != nil {
-			resPtr = wasmComponent.writeError(NOT_FOUND)
+			resPtr = wasmComponent.writeError(NOT_FOUND, err)
 		} else {
-			resPtr, err = wasmComponent.writeResult(value)
-			if err != nil {
-				resPtr = wasmComponent.writeError(WASM_RUNTIME_ERROR)
-			}
+			resPtr = wasmComponent.writeResult(value)
 		}
 	}
 
@@ -99,38 +102,38 @@ func hostPut(data interface{}, callframe *wasmedge.CallingFrame, params []interf
 	var groupToken []string
 	err := wasmComponent.getWasmObject(tokenPointer, tokenLength, &groupToken)
 	if err != nil {
-		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR)
+		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
 		return returns, wasmedge.Result_Success
 	}
 
 	key, err := wasmComponent.getWasmString(namePointer, nameLength)
 	if err != nil {
-		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR)
+		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
 		return returns, wasmedge.Result_Success
 	}
 
 	collId := strings.Split(key, ":")[1]
 	res, err := client.SMIsMember(context.Background(), "data:"+collId+":groups", groupToken).Result()
 	if err != nil {
-		returns[0] = wasmComponent.writeError(REDIS_ERROR)
+		returns[0] = wasmComponent.writeError(REDIS_ERROR, err)
 		return returns, wasmedge.Result_Success
 	}
 
 	authorized := slices.Contains(res, true)
 
 	if !authorized {
-		returns[0] = wasmComponent.writeError(UNAUTHORIZED)
+		returns[0] = wasmComponent.writeError(UNAUTHORIZED, errors.New("current user is not authorized"))
 	} else {
 		value, err := wasmComponent.getWasmString(valuePointer, valueLength)
 		if err != nil {
-			returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR)
+			returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
 			return returns, wasmedge.Result_Success
 		}
 		err = client.Set(context.Background(), key, value, 0).Err()
 		if err != nil {
-			returns[0] = wasmComponent.writeError(REDIS_ERROR)
+			returns[0] = wasmComponent.writeError(REDIS_ERROR, err)
 		} else {
-			returns[0] = wasmComponent.writeError(SUCCESS)
+			returns[0] = wasmComponent.writeResult("")
 		}
 	}
 
@@ -163,15 +166,15 @@ func hostDelete(data interface{}, callframe *wasmedge.CallingFrame, params []int
 
 	var resPtr any
 	if err != nil {
-		resPtr = wasmComponent.writeError(REDIS_ERROR)
+		resPtr = wasmComponent.writeError(REDIS_ERROR, err)
 	} else if !authorized {
-		resPtr = wasmComponent.writeError(UNAUTHORIZED)
+		resPtr = wasmComponent.writeError(UNAUTHORIZED, errors.New("current user is not authorized"))
 	} else {
 		err = client.Del(context.Background(), key).Err()
 		if err != nil {
-			resPtr = wasmComponent.writeError(NOT_FOUND)
+			resPtr = wasmComponent.writeError(NOT_FOUND, err)
 		} else {
-			resPtr = wasmComponent.writeError(SUCCESS)
+			resPtr = wasmComponent.writeResult("")
 		}
 	}
 
@@ -200,7 +203,7 @@ func hostCreateCollection(data interface{}, callframe *wasmedge.CallingFrame, pa
 
 	err := wasmComponent.getWasmObject(metadataPointer, metadataLength, &metadata)
 	if err != nil {
-		resPtr = wasmComponent.writeError(WASM_RUNTIME_ERROR)
+		resPtr = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
 	}
 
 	groups := metadata["groups"].([]any)
@@ -212,12 +215,9 @@ func hostCreateCollection(data interface{}, callframe *wasmedge.CallingFrame, pa
 	err = client.SAdd(context.Background(), key, groups).Err()
 
 	if err != nil {
-		resPtr = wasmComponent.writeError(REDIS_ERROR)
+		resPtr = wasmComponent.writeError(REDIS_ERROR, err)
 	} else {
-		resPtr, err = wasmComponent.writeResult(collectionId)
-		if err != nil {
-			resPtr = wasmComponent.writeError(WASM_RUNTIME_ERROR)
-		}
+		resPtr = wasmComponent.writeResult(collectionId)
 	}
 
 	// Set the returns
@@ -243,17 +243,16 @@ func hostDeleteCollection(data interface{}, callframe *wasmedge.CallingFrame, pa
 	collectionId, err := wasmComponent.getWasmString(collectionIdPtr, collectionIdLength)
 	returns := make([]interface{}, 1)
 	if err != nil {
-		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR)
+		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
 		return returns, wasmedge.Result_Success
 	}
 
 	var cursor uint64
 	for {
 		var keys []string
-		var err error
 		keys, cursor, err = client.Scan(context.Background(), cursor, "data:"+collectionId+":*", 10).Result()
 		if err != nil {
-			returns[0] = wasmComponent.writeError(REDIS_ERROR)
+			returns[0] = wasmComponent.writeError(REDIS_ERROR, err)
 		}
 
 		client.Del(context.Background(), keys...)
@@ -265,7 +264,7 @@ func hostDeleteCollection(data interface{}, callframe *wasmedge.CallingFrame, pa
 	//TODO: Forward the deletion process to other nodes with HTTP
 
 	// Return
-	returns[0] = wasmComponent.writeError(SUCCESS)
+	returns[0] = wasmComponent.writeResult("")
 	return returns, wasmedge.Result_Success
 }
 
@@ -284,28 +283,23 @@ func hostRemoveUserFromGroup(data interface{}, callframe *wasmedge.CallingFrame,
 	returns := make([]interface{}, 1)
 	userId, err := wasmComponent.getWasmString(userIdPtr, userIdLength)
 	if err != nil {
-		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR)
+		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
 		return returns, wasmedge.Result_Success
 	}
 	groupName, err := wasmComponent.getWasmString(groupNamePtr, groupNameLength)
 
 	get, err := http.Get("http://host.docker.internal:3000/remove-from-group?group=" + groupName + "&userId=" + userId)
 	if err != nil {
-		returns[0] = wasmComponent.writeError(HTTP_ERROR)
+		returns[0] = wasmComponent.writeError(HTTP_ERROR, err)
 		return returns, wasmedge.Result_Success
 	}
 
-	switch get.StatusCode {
-	case 200:
-		returns[0] = wasmComponent.writeError(SUCCESS)
-		return returns, wasmedge.Result_Success
-	case 500:
-		returns[0] = wasmComponent.writeError(HTTP_INTERNAL_SERVER_ERROR)
-		return returns, wasmedge.Result_Success
-	default:
-		returns[0] = wasmComponent.writeError(HTTP_ERROR)
-		return returns, wasmedge.Result_Success
+	if get.StatusCode == 200 {
+		returns[0] = wasmComponent.writeResult("")
+	} else {
+		returns[0] = wasmComponent.writeError(CENTRAL_REPO_ERROR, err)
 	}
+	return returns, wasmedge.Result_Success
 }
 
 func hostAddUserToGroup(data interface{}, callframe *wasmedge.CallingFrame, params []interface{}) ([]interface{}, wasmedge.Result) {
@@ -323,35 +317,30 @@ func hostAddUserToGroup(data interface{}, callframe *wasmedge.CallingFrame, para
 	returns := make([]interface{}, 1)
 	userId, err := wasmComponent.getWasmString(userIdPtr, userIdLength)
 	if err != nil {
-		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR)
+		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
 		return returns, wasmedge.Result_Success
 	}
 	groupName, err := wasmComponent.getWasmString(groupNamePtr, groupNameLength)
 
 	get, err := http.Get("http://host.docker.internal:3000/add-to-group?group=" + groupName + "&userId=" + userId)
 	if err != nil {
-		returns[0] = wasmComponent.writeError(HTTP_ERROR)
+		returns[0] = wasmComponent.writeError(HTTP_ERROR, err)
 		return returns, wasmedge.Result_Success
 	}
 
-	switch get.StatusCode {
-	case 200:
-		returns[0] = wasmComponent.writeError(SUCCESS)
-		return returns, wasmedge.Result_Success
-	case 500:
-		returns[0] = wasmComponent.writeError(HTTP_INTERNAL_SERVER_ERROR)
-		return returns, wasmedge.Result_Success
-	default:
-		returns[0] = wasmComponent.writeError(HTTP_ERROR)
-		return returns, wasmedge.Result_Success
+	if get.StatusCode == 200 {
+		returns[0] = wasmComponent.writeResult("")
+	} else {
+		returns[0] = wasmComponent.writeError(CENTRAL_REPO_ERROR, err)
 	}
+	return returns, wasmedge.Result_Success
 }
 
 func hostCreateGroup(data interface{}, callframe *wasmedge.CallingFrame, params []interface{}) ([]interface{}, wasmedge.Result) {
 	groupNamePtr := params[0].(int32)
 	groupNameLength := params[1].(int32)
-	partecipantIDsJsonPtr := params[2].(int32)
-	partecipantIDsJsonLength := params[3].(int32)
+	participantIDsJsonPtr := params[2].(int32)
+	participantIDsJsonLength := params[3].(int32)
 
 	wasmComponent := wasmComponents{
 		memory:     callframe.GetMemoryByIndex(0),
@@ -360,30 +349,25 @@ func hostCreateGroup(data interface{}, callframe *wasmedge.CallingFrame, params 
 	}
 
 	returns := make([]interface{}, 1)
-	partecipantIDsJsonStr, err := wasmComponent.getWasmString(partecipantIDsJsonPtr, partecipantIDsJsonLength)
+	participantIDsJsonStr, err := wasmComponent.getWasmString(participantIDsJsonPtr, participantIDsJsonLength)
 	if err != nil {
-		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR)
+		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
 		return returns, wasmedge.Result_Success
 	}
 	groupName, err := wasmComponent.getWasmString(groupNamePtr, groupNameLength)
 
-	get, err := http.Get("http://host.docker.internal:3000/create-group?group=" + groupName + "&partecipants=" + partecipantIDsJsonStr)
+	get, err := http.Get("http://host.docker.internal:3000/create-group?group=" + groupName + "&participants=" + participantIDsJsonStr)
 	if err != nil {
-		returns[0] = wasmComponent.writeError(HTTP_ERROR)
+		returns[0] = wasmComponent.writeError(HTTP_ERROR, err)
 		return returns, wasmedge.Result_Success
 	}
 
-	switch get.StatusCode {
-	case 200:
-		returns[0] = wasmComponent.writeError(SUCCESS)
-		return returns, wasmedge.Result_Success
-	case 500:
-		returns[0] = wasmComponent.writeError(HTTP_INTERNAL_SERVER_ERROR)
-		return returns, wasmedge.Result_Success
-	default:
-		returns[0] = wasmComponent.writeError(HTTP_ERROR)
-		return returns, wasmedge.Result_Success
+	if get.StatusCode == 200 {
+		returns[0] = wasmComponent.writeResult("")
+	} else {
+		returns[0] = wasmComponent.writeError(CENTRAL_REPO_ERROR, err)
 	}
+	return returns, wasmedge.Result_Success
 }
 
 func hostDeleteGroup(data interface{}, callframe *wasmedge.CallingFrame, params []interface{}) ([]interface{}, wasmedge.Result) {
@@ -398,22 +382,21 @@ func hostDeleteGroup(data interface{}, callframe *wasmedge.CallingFrame, params 
 
 	returns := make([]interface{}, 1)
 	groupName, err := wasmComponent.getWasmString(groupNamePtr, groupNameLength)
+	if err != nil {
+		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
+		return returns, wasmedge.Result_Success
+	}
 
 	get, err := http.Get("http://host.docker.internal:3000/delete-group?group=" + groupName)
 	if err != nil {
-		returns[0] = wasmComponent.writeError(HTTP_ERROR)
+		returns[0] = wasmComponent.writeError(HTTP_ERROR, err)
 		return returns, wasmedge.Result_Success
 	}
 
-	switch get.StatusCode {
-	case 200:
-		returns[0] = wasmComponent.writeError(SUCCESS)
-		return returns, wasmedge.Result_Success
-	case 500:
-		returns[0] = wasmComponent.writeError(HTTP_INTERNAL_SERVER_ERROR)
-		return returns, wasmedge.Result_Success
-	default:
-		returns[0] = wasmComponent.writeError(HTTP_ERROR)
-		return returns, wasmedge.Result_Success
+	if get.StatusCode == 200 {
+		returns[0] = wasmComponent.writeResult("")
+	} else {
+		returns[0] = wasmComponent.writeError(CENTRAL_REPO_ERROR, err)
 	}
+	return returns, wasmedge.Result_Success
 }

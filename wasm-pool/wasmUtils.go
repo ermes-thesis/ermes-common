@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/second-state/WasmEdge-go/wasmedge"
 	"log"
+	"slices"
 )
 
 type wasmComponents struct {
@@ -24,24 +25,52 @@ func (wasmComponent *wasmComponents) getWasmObject(ptr int32, len int32, result 
 	return err
 }
 
-func (wasmComponent *wasmComponents) writeError(error errorCode) any {
-	resPtr, err := wasmComponent.executor.Invoke(wasmComponent.mallocFunc, int32(1))
+func (wasmComponent *wasmComponents) writeError(errCode responseCode, err error) any {
+	response, err := json.Marshal(wasmHostFunctionResponse{
+		Code:    errCode,
+		Message: err.Error(),
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
-	err = wasmComponent.memory.SetData([]byte{byte(error)}, uint(resPtr[0].(int32)), uint(1))
+	resPtr, err := wasmComponent.executor.Invoke(wasmComponent.mallocFunc, int32(len(response)+4))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	codeBytes := make([]byte, 4)
+	binary.LittleEndian.PutUint32(codeBytes, uint32(len(response)))
+	response = slices.Insert(response, 0, codeBytes...)
+	err = wasmComponent.memory.SetData(response, uint(resPtr[0].(int32)), uint(len(response)+4))
 	if err != nil {
 		log.Fatal(err)
 	}
 	return resPtr[0]
 }
 
-func (wasmComponent *wasmComponents) writeResult(value string) (any, error) {
-	resPtr, _ := wasmComponent.executor.Invoke(wasmComponent.mallocFunc, int32(len(value)+5))
+func (wasmComponent *wasmComponents) writeResult(value string) any {
+	var resPtr []any
+	response, err := json.Marshal(wasmHostFunctionResponse{
+		Code:    SUCCESS,
+		Message: value,
+	})
+	if err != nil {
+		resPtr[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
+		return resPtr[0]
+	}
 
-	memData, err := wasmComponent.memory.GetData(uint(resPtr[0].(int32)), uint(len(value)+5))
-	memData[0] = byte(SUCCESS)
-	binary.LittleEndian.PutUint32(memData[1:5], uint32(len(value)))
-	copy(memData[5:], value)
-	return resPtr[0], err
+	resPtr, err = wasmComponent.executor.Invoke(wasmComponent.mallocFunc, int32(len(response)+4))
+	if err != nil {
+		resPtr[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
+		return resPtr[0]
+	}
+
+	codeBytes := make([]byte, 4)
+	binary.LittleEndian.PutUint32(codeBytes, uint32(len(response)))
+	response = slices.Insert(response, 0, codeBytes...)
+	err = wasmComponent.memory.SetData(response, uint(resPtr[0].(int32)), uint(len(response)+4))
+	if err != nil {
+		resPtr[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
+	}
+	return resPtr[0]
 }
