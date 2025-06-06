@@ -8,25 +8,32 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      - run: 'echo $DOCKER_HOST'
       - name: Set up Docker
         id: setup-docker
         uses: docker/setup-docker-action@v4
+        with:
+          set-host: true
+      - run: 'echo $DOCKER_HOST'
       - name: Echo docker sock
         run: 'echo "Docker sock: ${{ steps.setup-docker.outputs.sock }}"'
+      - name: Echo docker tcp
+        run: 'echo "Docker sock: ${{ steps.setup-docker.outputs.tcp }}"'
 
       - name: Set up Docker Compose
         uses: docker/setup-compose-action@v1.2.0
 
       - name: Build and run tests via Docker Compose
         run: |
-          docker compose -f .devcontainer/docker-compose.yml run --build -v ${{ steps.setup-docker.outputs.sock }}:/var/run/docker.sock go
+          docker compose -f .devcontainer/docker-compose.yml run --build -v ${{ steps.setup-docker.outputs.sock }}:/var/run/docker.sock go \
+          go test -json github.com/ermes-thesis/ermes-wasm-pool/test | go-ctrf-json-reporter -output ctrf-report.json
 
       - name: Publish Test Report
         uses: ctrf-io/github-test-reporter@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          report-path: './ctrf/*.json'
+          report-path: './ctrf-report.json'
           summary-report: true
           github-report: true
           test-report: true
