@@ -3,6 +3,8 @@ package test
 import (
 	"context"
 	"fmt"
+	"net"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -13,6 +15,12 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	tcredis "github.com/testcontainers/testcontainers-go/modules/redis"
 )
+
+func TestMain(m *testing.M) {
+	os.Setenv("TESTCONTAINERS_HOST_OVERRIDE", getDockerHost())
+	m.Run()
+	os.Unsetenv("TESTCONTAINERS_HOST_OVERRIDE")
+}
 
 func TestWasmPool(t *testing.T) {
 	redisContainer, err := tcredis.Run(context.Background(),
@@ -127,4 +135,12 @@ func getTestReqAndCtx(userId string) (string, string) {
 		"}" +
 		"}"
 	return req, ctx
+}
+
+func getDockerHost() string {
+	addrs, err := net.LookupHost("host.docker.internal")
+	if err == nil && len(addrs) > 0 {
+		return "host.docker.internal"
+	}
+	return "172.17.0.1"
 }
