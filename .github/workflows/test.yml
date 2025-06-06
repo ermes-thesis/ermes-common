@@ -41,21 +41,12 @@ jobs:
           test-report: true
           test-list-report: true
           failed-report: true
-          fail-rate-report: true
           flaky-report: true
-          flaky-rate-report: true
-          failed-folded-report: true
           previous-results-report: true
-          insights-report: true
           slowest-report: true
-          ai-report: true
           skipped-report: true
-          suite-folded-report: true
-          suite-list-report: true
           pull-request-report: true
           commit-report: true
-          custom-report: true
-          community-report: true
 
           status-check: true
           status-check-name: 'Test Reporter Results'
