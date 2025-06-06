@@ -14,7 +14,7 @@ jobs:
 
       - name: Build and run tests via Docker Compose
         run: |
-          docker compose up --build --abort-on-container-exit --exit-code-from go
+          docker compose -f .devcontainer/docker-compose.yml up --build --abort-on-container-exit --exit-code-from go
 
       - name: Publish Test Report
         uses: ctrf-io/github-test-reporter@v1
