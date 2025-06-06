@@ -4,28 +4,29 @@ on: [ push, pull_request, workflow_dispatch ]
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: read
+      checks: write
+      pull-requests: write
+      actions: read
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - run: 'echo $DOCKER_HOST'
+
       - name: Set up Docker
         id: setup-docker
         uses: docker/setup-docker-action@v4
         with:
           set-host: true
-      - run: 'echo $DOCKER_HOST'
-      - name: Echo docker sock
-        run: 'echo "Docker sock: ${{ steps.setup-docker.outputs.sock }}"'
-      - name: Echo docker tcp
-        run: 'echo "Docker sock: ${{ steps.setup-docker.outputs.tcp }}"'
 
       - name: Set up Docker Compose
         uses: docker/setup-compose-action@v1.2.0
 
       - name: Build and run tests via Docker Compose
         run: |
-          docker compose -f .devcontainer/docker-compose.yml run --build -v ${{ steps.setup-docker.outputs.sock }}:/var/run/docker.sock go \
+          docker compose -f .devcontainer/docker-compose.yml run --build go \
           bash -c 'go install github.com/ctrf-io/go-ctrf-json-reporter/cmd/go-ctrf-json-reporter@latest && \
           go test -json github.com/ermes-thesis/ermes-wasm-pool/test | go-ctrf-json-reporter -output ctrf-report.json'
 
