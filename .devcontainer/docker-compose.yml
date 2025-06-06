@@ -15,7 +15,11 @@ services:
     security_opt:
       - seccomp:unconfined
     working_dir: /workspaces/ermes-wasm-pool
-    command: go test github.com/ermes-thesis/ermes-wasm-pool/test
+    command: >
+      bash -c ' \
+        mkdir -p ctrf; \
+        go test -json github.com/ermes-thesis/ermes-wasm-pool/test | go-ctrf-json-reporter -output ctrf/ctrf-report.json;
+      '
 
 volumes:
   gocache:

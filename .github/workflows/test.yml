@@ -1,0 +1,46 @@
+name: Test
+on: [ push, pull_request, workflow_dispatch ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Compose
+        uses: docker/setup-compose-action@v1.2.0
+
+      - name: Build and run tests via Docker Compose
+        run: |
+          docker compose up --build --abort-on-container-exit --exit-code-from go
+
+      - name: Publish Test Report
+        uses: ctrf-io/github-test-reporter@v1
+        with:
+          report-path: './ctrf/*.json'
+          summary-report: true
+          github-report: true
+          test-report: true
+          test-list-report: true
+          failed-report: true
+          fail-rate-report: true
+          flaky-report: true
+          flaky-rate-report: true
+          failed-folded-report: true
+          previous-results-report: true
+          insights-report: true
+          slowest-report: true
+          ai-report: true
+          skipped-report: true
+          suite-folded-report: true
+          suite-list-report: true
+          pull-request-report: true
+          commit-report: true
+          custom-report: true
+          community-report: true
+
+          status-check: true
+          status-check-name: 'Test Reporter Results'
+        if: always()
