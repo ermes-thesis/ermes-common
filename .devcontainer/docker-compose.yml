@@ -1,21 +1,12 @@
 name: ermes-wasm-pool
 
 services:
-  redis:
-    image: redis:latest
-    ports:
-      - "9999:6379"
-    command: redis-server --save 20 1 --loglevel warning --requirepass eYVX7EwVmmxKPCDmwMtyKVge8oLd2t81
-    volumes:
-      - redis:/data
-    networks:
-      - dev-net
-
   go:
     build:
       context: .
       dockerfile: Dockerfile
     volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
       - ..:/workspaces/ermes-wasm-pool:cached
       - gocache:/go/pkg/mod  # Go module cache persistente
       - gocachebin:/root/.cache/go-build # cache di compilazione
@@ -23,21 +14,11 @@ services:
       - SYS_PTRACE
     security_opt:
       - seccomp:unconfined
-    depends_on:
-      - redis
     working_dir: /workspaces/ermes-wasm-pool
-    command: sleep infinity
-    networks:
-      - dev-net
+    command: go test github.com/ermes-thesis/ermes-wasm-pool/test
 
 volumes:
-  redis:
-    driver: local
   gocache:
     driver: local
   gocachebin:
     driver: local
-
-networks:
-  dev-net:
-    attachable: true
