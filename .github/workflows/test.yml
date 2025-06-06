@@ -26,7 +26,8 @@ jobs:
       - name: Build and run tests via Docker Compose
         run: |
           docker compose -f .devcontainer/docker-compose.yml run --build -v ${{ steps.setup-docker.outputs.sock }}:/var/run/docker.sock go \
-          go test -json github.com/ermes-thesis/ermes-wasm-pool/test | go-ctrf-json-reporter -output ctrf-report.json
+          bash -c 'go install github.com/ctrf-io/go-ctrf-json-reporter/cmd/go-ctrf-json-reporter@latest && \
+          go test -json github.com/ermes-thesis/ermes-wasm-pool/test | go-ctrf-json-reporter -output ctrf-report.json'
 
       - name: Publish Test Report
         uses: ctrf-io/github-test-reporter@v1
