@@ -36,18 +36,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           report-path: './ctrf-report.json'
-          summary-report: true
-          github-report: true
-          test-report: true
-          test-list-report: true
-          failed-report: true
-          flaky-report: true
-          previous-results-report: true
-          slowest-report: true
-          skipped-report: true
-          pull-request-report: true
-          commit-report: true
-
+          pull-request: true
           status-check: true
           status-check-name: 'Test Reporter Results'
         if: always()
