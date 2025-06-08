@@ -1,6 +1,7 @@
 package wasm
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"github.com/google/uuid"
@@ -288,16 +289,21 @@ func hostRemoveUserFromGroup(data interface{}, callframe *wasmedge.CallingFrame,
 	}
 	groupName, err := wasmComponent.getWasmString(groupNamePtr, groupNameLength)
 
-	get, err := http.Get("http://host.docker.internal:3000/remove-from-group?group=" + groupName + "&userId=" + userId)
+	req, err := http.NewRequest(http.MethodDelete, "http://host.docker.internal:3000/group/"+groupName+"/"+userId, nil)
+	if err != nil {
+		returns[0] = wasmComponent.writeError(HTTP_ERROR, err)
+		return returns, wasmedge.Result_Success
+	}
+	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		returns[0] = wasmComponent.writeError(HTTP_ERROR, err)
 		return returns, wasmedge.Result_Success
 	}
 
-	if get.StatusCode == 200 {
+	if res.StatusCode == http.StatusOK {
 		returns[0] = wasmComponent.writeResult("")
 	} else {
-		returns[0] = wasmComponent.writeError(CENTRAL_REPO_ERROR, errors.New(get.Status))
+		returns[0] = wasmComponent.writeError(CENTRAL_REPO_ERROR, errors.New(res.Status))
 	}
 	return returns, wasmedge.Result_Success
 }
@@ -322,16 +328,16 @@ func hostAddUserToGroup(data interface{}, callframe *wasmedge.CallingFrame, para
 	}
 	groupName, err := wasmComponent.getWasmString(groupNamePtr, groupNameLength)
 
-	get, err := http.Get("http://host.docker.internal:3000/add-to-group?group=" + groupName + "&userId=" + userId)
+	res, err := http.Post("http://host.docker.internal:3000/group/"+groupName+"/"+userId, "", nil)
 	if err != nil {
 		returns[0] = wasmComponent.writeError(HTTP_ERROR, err)
 		return returns, wasmedge.Result_Success
 	}
 
-	if get.StatusCode == 200 {
+	if res.StatusCode == http.StatusOK {
 		returns[0] = wasmComponent.writeResult("")
 	} else {
-		returns[0] = wasmComponent.writeError(CENTRAL_REPO_ERROR, errors.New(get.Status))
+		returns[0] = wasmComponent.writeError(CENTRAL_REPO_ERROR, errors.New(res.Status))
 	}
 	return returns, wasmedge.Result_Success
 }
@@ -356,16 +362,16 @@ func hostCreateGroup(data interface{}, callframe *wasmedge.CallingFrame, params 
 	}
 	groupName, err := wasmComponent.getWasmString(groupNamePtr, groupNameLength)
 
-	get, err := http.Get("http://host.docker.internal:3000/create-group?group=" + groupName + "&participants=" + participantIDsJsonStr)
+	res, err := http.Post("http://host.docker.internal:3000/group/"+groupName, "application/json", bytes.NewBufferString(participantIDsJsonStr))
 	if err != nil {
 		returns[0] = wasmComponent.writeError(HTTP_ERROR, err)
 		return returns, wasmedge.Result_Success
 	}
 
-	if get.StatusCode == 200 {
+	if res.StatusCode == http.StatusCreated {
 		returns[0] = wasmComponent.writeResult("")
 	} else {
-		returns[0] = wasmComponent.writeError(CENTRAL_REPO_ERROR, errors.New(get.Status))
+		returns[0] = wasmComponent.writeError(CENTRAL_REPO_ERROR, errors.New(res.Status))
 	}
 	return returns, wasmedge.Result_Success
 }
@@ -387,16 +393,21 @@ func hostDeleteGroup(data interface{}, callframe *wasmedge.CallingFrame, params 
 		return returns, wasmedge.Result_Success
 	}
 
-	get, err := http.Get("http://host.docker.internal:3000/delete-group?group=" + groupName)
+	req, err := http.NewRequest(http.MethodDelete, "http://host.docker.internal:3000/group/"+groupName, nil)
+	if err != nil {
+		returns[0] = wasmComponent.writeError(HTTP_ERROR, err)
+		return returns, wasmedge.Result_Success
+	}
+	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		returns[0] = wasmComponent.writeError(HTTP_ERROR, err)
 		return returns, wasmedge.Result_Success
 	}
 
-	if get.StatusCode == 200 {
+	if res.StatusCode == http.StatusOK {
 		returns[0] = wasmComponent.writeResult("")
 	} else {
-		returns[0] = wasmComponent.writeError(CENTRAL_REPO_ERROR, errors.New(get.Status))
+		returns[0] = wasmComponent.writeError(CENTRAL_REPO_ERROR, errors.New(res.Status))
 	}
 	return returns, wasmedge.Result_Success
 }
