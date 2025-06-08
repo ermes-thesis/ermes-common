@@ -297,7 +297,7 @@ func hostRemoveUserFromGroup(data interface{}, callframe *wasmedge.CallingFrame,
 	if get.StatusCode == 200 {
 		returns[0] = wasmComponent.writeResult("")
 	} else {
-		returns[0] = wasmComponent.writeError(CENTRAL_REPO_ERROR, err)
+		returns[0] = wasmComponent.writeError(CENTRAL_REPO_ERROR, errors.New(get.Status))
 	}
 	return returns, wasmedge.Result_Success
 }
@@ -331,7 +331,7 @@ func hostAddUserToGroup(data interface{}, callframe *wasmedge.CallingFrame, para
 	if get.StatusCode == 200 {
 		returns[0] = wasmComponent.writeResult("")
 	} else {
-		returns[0] = wasmComponent.writeError(CENTRAL_REPO_ERROR, err)
+		returns[0] = wasmComponent.writeError(CENTRAL_REPO_ERROR, errors.New(get.Status))
 	}
 	return returns, wasmedge.Result_Success
 }
@@ -365,7 +365,7 @@ func hostCreateGroup(data interface{}, callframe *wasmedge.CallingFrame, params 
 	if get.StatusCode == 200 {
 		returns[0] = wasmComponent.writeResult("")
 	} else {
-		returns[0] = wasmComponent.writeError(CENTRAL_REPO_ERROR, err)
+		returns[0] = wasmComponent.writeError(CENTRAL_REPO_ERROR, errors.New(get.Status))
 	}
 	return returns, wasmedge.Result_Success
 }
@@ -396,7 +396,7 @@ func hostDeleteGroup(data interface{}, callframe *wasmedge.CallingFrame, params 
 	if get.StatusCode == 200 {
 		returns[0] = wasmComponent.writeResult("")
 	} else {
-		returns[0] = wasmComponent.writeError(CENTRAL_REPO_ERROR, err)
+		returns[0] = wasmComponent.writeError(CENTRAL_REPO_ERROR, errors.New(get.Status))
 	}
 	return returns, wasmedge.Result_Success
 }
