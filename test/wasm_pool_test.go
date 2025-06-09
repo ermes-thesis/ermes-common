@@ -60,7 +60,7 @@ func TestWasmPool(t *testing.T) {
 	fmt.Println("Auth function:", userdId, code)
 
 	req, ctx := getTestReqAndCtx(userdId)
-	response, resCode := executor.InvokeFn("centralRepoFunction", req, ctx)
+	response, resCode := executor.InvokeFn("function", req, ctx)
 	fmt.Println("Invoke function:", string(response), resCode)
 
 	if resCode != 200 {
