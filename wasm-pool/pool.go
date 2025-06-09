@@ -39,7 +39,7 @@ func NewExecutorPool(poolSize int) *ExecutorPool {
 	return pool
 }
 
-func (p *ExecutorPool) RegisterHostFns(redisClient *redis.Client, centralRepoAddress string) {
+func (p *ExecutorPool) RegisterHostFns(redisClient *redis.Client) {
 	for _, executor := range p.instances {
 		// Create the module instance with the module name "extern".
 		externMod := wasmedge.NewModule("extern")
@@ -66,10 +66,10 @@ func (p *ExecutorPool) RegisterHostFns(redisClient *redis.Client, centralRepoAdd
 		hostDelFun := wasmedge.NewFunction(fnTwoParamOneReturnType, hostDelete, redisClient, 0)
 		hostCreateCollectionFun := wasmedge.NewFunction(fnOneParamOneReturnType, hostCreateCollection, redisClient, 0)
 		hostDeleteCollectionFun := wasmedge.NewFunction(fnOneParamOneReturnType, hostDeleteCollection, redisClient, 0)
-		hostAddUserToGroupFun := wasmedge.NewFunction(fnTwoParamOneReturnType, hostAddUserToGroup, centralRepoAddress, 0)
-		hostRemoveUserFromGroupFun := wasmedge.NewFunction(fnTwoParamOneReturnType, hostRemoveUserFromGroup, centralRepoAddress, 0)
-		hostCreateGroupFun := wasmedge.NewFunction(fnTwoParamOneReturnType, hostCreateGroup, centralRepoAddress, 0)
-		hostDeleteGroupFun := wasmedge.NewFunction(fnOneParamOneReturnType, hostDeleteGroup, centralRepoAddress, 0)
+		hostAddUserToGroupFun := wasmedge.NewFunction(fnTwoParamOneReturnType, hostAddUserToGroup, nil, 0)
+		hostRemoveUserFromGroupFun := wasmedge.NewFunction(fnTwoParamOneReturnType, hostRemoveUserFromGroup, nil, 0)
+		hostCreateGroupFun := wasmedge.NewFunction(fnTwoParamOneReturnType, hostCreateGroup, nil, 0)
+		hostDeleteGroupFun := wasmedge.NewFunction(fnOneParamOneReturnType, hostDeleteGroup, nil, 0)
 
 		// If the function object is not added into a module instance object, it should be released.
 		fnTwoParamOneReturnType.Release()

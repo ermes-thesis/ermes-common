@@ -3,7 +3,6 @@ package test
 import (
 	"context"
 	"fmt"
-	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -17,9 +16,11 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	os.Setenv("TESTCONTAINERS_HOST_OVERRIDE", getDockerHost())
+	os.Setenv("TESTCONTAINERS_HOST_OVERRIDE", wasm.GetDockerHost())
+	os.Setenv("ERMES_SECRET", "secret")
 	m.Run()
 	os.Unsetenv("TESTCONTAINERS_HOST_OVERRIDE")
+	os.Unsetenv("ERMES_SECRET")
 }
 
 func TestWasmPool(t *testing.T) {
@@ -50,7 +51,7 @@ func TestWasmPool(t *testing.T) {
 	pool := wasm.NewExecutorPool(10)
 	defer pool.Close()
 
-	pool.RegisterHostFns(client, "https://"+getDockerHost()+":3000")
+	pool.RegisterHostFns(client)
 
 	executor := pool.Acquire()
 	defer executor.Release()
@@ -94,7 +95,7 @@ func BenchmarkWasmPool(b *testing.B) {
 	pool := wasm.NewExecutorPool(10)
 	defer pool.Close()
 
-	pool.RegisterHostFns(client, "http://"+getDockerHost()+":3000")
+	pool.RegisterHostFns(client)
 
 	for b.Loop() {
 		client.SAdd(context.Background(), "data:255ef4af-3a49-4382-a90d-6524bdee5ad1:groups", "test")
@@ -136,13 +137,4 @@ func getTestReqAndCtx(userId string) (string, string) {
 		"}" +
 		"}"
 	return req, ctx
-}
-
-func getDockerHost() string {
-	addrs, err := net.LookupHost("host.docker.internal")
-	if err == nil && len(addrs) > 0 {
-		return "host.docker.internal"
-	}
-
-	return "172.17.0.1"
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/second-state/WasmEdge-go/wasmedge"
@@ -289,11 +290,13 @@ func hostRemoveUserFromGroup(data interface{}, callframe *wasmedge.CallingFrame,
 	}
 	groupName, err := wasmComponent.getWasmString(groupNamePtr, groupNameLength)
 
-	req, err := http.NewRequest(http.MethodDelete, data.(string)+"/group/"+groupName+"/"+userId, nil)
+	centralRepoAddr := fmt.Sprintf("http://%s:%d", CentralRepoIP(), CentralRepoPort())
+	req, err := http.NewRequest(http.MethodDelete, centralRepoAddr+"/group/"+groupName+"/"+userId, nil)
 	if err != nil {
 		returns[0] = wasmComponent.writeError(HTTP_ERROR, err)
 		return returns, wasmedge.Result_Success
 	}
+	req.Header.Set("X-ERMES-SECRET", ErmesSecret())
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		returns[0] = wasmComponent.writeError(HTTP_ERROR, err)
@@ -328,7 +331,14 @@ func hostAddUserToGroup(data interface{}, callframe *wasmedge.CallingFrame, para
 	}
 	groupName, err := wasmComponent.getWasmString(groupNamePtr, groupNameLength)
 
-	res, err := http.Post(data.(string)+"/group/"+groupName+"/"+userId, "", nil)
+	centralRepoAddr := fmt.Sprintf("http://%s:%d", CentralRepoIP(), CentralRepoPort())
+	req, err := http.NewRequest(http.MethodPost, centralRepoAddr+"/group/"+groupName+"/"+userId, nil)
+	if err != nil {
+		returns[0] = wasmComponent.writeError(HTTP_ERROR, err)
+		return returns, wasmedge.Result_Success
+	}
+	req.Header.Set("X-ERMES-SECRET", ErmesSecret())
+	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		returns[0] = wasmComponent.writeError(HTTP_ERROR, err)
 		return returns, wasmedge.Result_Success
@@ -362,7 +372,15 @@ func hostCreateGroup(data interface{}, callframe *wasmedge.CallingFrame, params 
 	}
 	groupName, err := wasmComponent.getWasmString(groupNamePtr, groupNameLength)
 
-	res, err := http.Post(data.(string)+"/group/"+groupName, "application/json", bytes.NewBufferString(participantIDsJsonStr))
+	centralRepoAddr := fmt.Sprintf("http://%s:%d", CentralRepoIP(), CentralRepoPort())
+	req, err := http.NewRequest(http.MethodPost, centralRepoAddr+"/group/"+groupName, bytes.NewBufferString(participantIDsJsonStr))
+	if err != nil {
+		returns[0] = wasmComponent.writeError(HTTP_ERROR, err)
+		return returns, wasmedge.Result_Success
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-ERMES-SECRET", ErmesSecret())
+	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		returns[0] = wasmComponent.writeError(HTTP_ERROR, err)
 		return returns, wasmedge.Result_Success
@@ -393,11 +411,13 @@ func hostDeleteGroup(data interface{}, callframe *wasmedge.CallingFrame, params 
 		return returns, wasmedge.Result_Success
 	}
 
-	req, err := http.NewRequest(http.MethodDelete, data.(string)+"/group/"+groupName, nil)
+	centralRepoAddr := fmt.Sprintf("http://%s:%d", CentralRepoIP(), CentralRepoPort())
+	req, err := http.NewRequest(http.MethodDelete, centralRepoAddr+"/group/"+groupName, nil)
 	if err != nil {
 		returns[0] = wasmComponent.writeError(HTTP_ERROR, err)
 		return returns, wasmedge.Result_Success
 	}
+	req.Header.Set("X-ERMES-SECRET", ErmesSecret())
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		returns[0] = wasmComponent.writeError(HTTP_ERROR, err)
