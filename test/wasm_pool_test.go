@@ -50,7 +50,7 @@ func TestWasmPool(t *testing.T) {
 	pool := wasm.NewExecutorPool(10)
 	defer pool.Close()
 
-	pool.RegisterHostFns(client)
+	pool.RegisterHostFns(client, "https://"+getDockerHost()+":3000")
 
 	executor := pool.Acquire()
 	defer executor.Release()
@@ -59,7 +59,7 @@ func TestWasmPool(t *testing.T) {
 	fmt.Println("Auth function:", userdId, code)
 
 	req, ctx := getTestReqAndCtx(userdId)
-	response, resCode := executor.InvokeFn("function", req, ctx)
+	response, resCode := executor.InvokeFn("centralRepoFunction", req, ctx)
 	fmt.Println("Invoke function:", string(response), resCode)
 
 	if resCode != 200 {
@@ -93,7 +93,8 @@ func BenchmarkWasmPool(b *testing.B) {
 
 	pool := wasm.NewExecutorPool(10)
 	defer pool.Close()
-	pool.RegisterHostFns(client)
+
+	pool.RegisterHostFns(client, "http://"+getDockerHost()+":3000")
 
 	for b.Loop() {
 		client.SAdd(context.Background(), "data:255ef4af-3a49-4382-a90d-6524bdee5ad1:groups", "test")
@@ -142,5 +143,6 @@ func getDockerHost() string {
 	if err == nil && len(addrs) > 0 {
 		return "host.docker.internal"
 	}
+
 	return "172.17.0.1"
 }
