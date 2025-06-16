@@ -302,6 +302,7 @@ func hostRemoveUserFromGroup(data interface{}, callframe *wasmedge.CallingFrame,
 		returns[0] = wasmComponent.writeError(HTTP_ERROR, err)
 		return returns, wasmedge.Result_Success
 	}
+	_ = res.Body.Close()
 
 	if res.StatusCode == http.StatusOK {
 		returns[0] = wasmComponent.writeResult("")
@@ -343,6 +344,7 @@ func hostAddUserToGroup(data interface{}, callframe *wasmedge.CallingFrame, para
 		returns[0] = wasmComponent.writeError(HTTP_ERROR, err)
 		return returns, wasmedge.Result_Success
 	}
+	_ = res.Body.Close()
 
 	if res.StatusCode == http.StatusOK {
 		returns[0] = wasmComponent.writeResult("")
@@ -385,6 +387,7 @@ func hostCreateGroup(data interface{}, callframe *wasmedge.CallingFrame, params 
 		returns[0] = wasmComponent.writeError(HTTP_ERROR, err)
 		return returns, wasmedge.Result_Success
 	}
+	_ = res.Body.Close()
 
 	if res.StatusCode == http.StatusCreated {
 		returns[0] = wasmComponent.writeResult("")
@@ -423,6 +426,7 @@ func hostDeleteGroup(data interface{}, callframe *wasmedge.CallingFrame, params 
 		returns[0] = wasmComponent.writeError(HTTP_ERROR, err)
 		return returns, wasmedge.Result_Success
 	}
+	_ = res.Body.Close()
 
 	if res.StatusCode == http.StatusOK {
 		returns[0] = wasmComponent.writeResult("")
