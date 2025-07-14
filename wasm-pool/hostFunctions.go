@@ -30,7 +30,7 @@ type wasmHostFunctionResponse struct {
 	Message string
 }
 
-func hostGet(data interface{}, callframe *wasmedge.CallingFrame, params []interface{}) ([]interface{}, wasmedge.Result) {
+func hostGet(data any, callframe *wasmedge.CallingFrame, params []any) ([]any, wasmedge.Result) {
 	paramPointer := params[0].(int32)
 	paramLength := params[1].(int32)
 	tokenPointer := params[2].(int32)
@@ -44,7 +44,7 @@ func hostGet(data interface{}, callframe *wasmedge.CallingFrame, params []interf
 		mallocFunc: callframe.GetModule().FindFunction("malloc"),
 	}
 
-	returns := make([]interface{}, 1)
+	returns := make([]any, 1)
 	var groupToken []string
 	err := wasmComponent.getWasmObject(tokenPointer, tokenLength, &groupToken)
 	if err != nil {
@@ -84,7 +84,7 @@ func hostGet(data interface{}, callframe *wasmedge.CallingFrame, params []interf
 	return returns, wasmedge.Result_Success
 }
 
-func hostPut(data interface{}, callframe *wasmedge.CallingFrame, params []interface{}) ([]interface{}, wasmedge.Result) {
+func hostPut(data any, callframe *wasmedge.CallingFrame, params []any) ([]any, wasmedge.Result) {
 	namePointer := params[0].(int32)
 	nameLength := params[1].(int32)
 	valuePointer := params[2].(int32)
@@ -100,7 +100,7 @@ func hostPut(data interface{}, callframe *wasmedge.CallingFrame, params []interf
 		mallocFunc: callframe.GetModule().FindFunction("malloc"),
 	}
 
-	returns := make([]interface{}, 1)
+	returns := make([]any, 1)
 	var groupToken []string
 	err := wasmComponent.getWasmObject(tokenPointer, tokenLength, &groupToken)
 	if err != nil {
@@ -142,7 +142,7 @@ func hostPut(data interface{}, callframe *wasmedge.CallingFrame, params []interf
 	return returns, wasmedge.Result_Success
 }
 
-func hostDelete(data interface{}, callframe *wasmedge.CallingFrame, params []interface{}) ([]interface{}, wasmedge.Result) {
+func hostDelete(data any, callframe *wasmedge.CallingFrame, params []any) ([]any, wasmedge.Result) {
 	paramPointer := params[0].(int32)
 	paramLength := params[1].(int32)
 	tokenPointer := params[2].(int32)
@@ -181,14 +181,14 @@ func hostDelete(data interface{}, callframe *wasmedge.CallingFrame, params []int
 	}
 
 	// Set the returns
-	returns := make([]interface{}, 1)
+	returns := make([]any, 1)
 	returns[0] = resPtr.(int32)
 
 	// Return
 	return returns, wasmedge.Result_Success
 }
 
-func hostCreateCollection(data interface{}, callframe *wasmedge.CallingFrame, params []interface{}) ([]interface{}, wasmedge.Result) {
+func hostCreateCollection(data any, callframe *wasmedge.CallingFrame, params []any) ([]any, wasmedge.Result) {
 	metadataPointer := params[0].(int32)
 	metadataLength := params[1].(int32)
 
@@ -223,14 +223,14 @@ func hostCreateCollection(data interface{}, callframe *wasmedge.CallingFrame, pa
 	}
 
 	// Set the returns
-	returns := make([]interface{}, 1)
+	returns := make([]any, 1)
 	returns[0] = resPtr.(int32)
 
 	// Return
 	return returns, wasmedge.Result_Success
 }
 
-func hostDeleteCollection(data interface{}, callframe *wasmedge.CallingFrame, params []interface{}) ([]interface{}, wasmedge.Result) {
+func hostDeleteCollection(data any, callframe *wasmedge.CallingFrame, params []any) ([]any, wasmedge.Result) {
 	collectionIdPtr := params[0].(int32)
 	collectionIdLength := params[1].(int32)
 
@@ -243,7 +243,7 @@ func hostDeleteCollection(data interface{}, callframe *wasmedge.CallingFrame, pa
 	}
 
 	collectionId, err := wasmComponent.getWasmString(collectionIdPtr, collectionIdLength)
-	returns := make([]interface{}, 1)
+	returns := make([]any, 1)
 	if err != nil {
 		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
 		return returns, wasmedge.Result_Success
@@ -270,7 +270,7 @@ func hostDeleteCollection(data interface{}, callframe *wasmedge.CallingFrame, pa
 	return returns, wasmedge.Result_Success
 }
 
-func hostRemoveUserFromGroup(data interface{}, callframe *wasmedge.CallingFrame, params []interface{}) ([]interface{}, wasmedge.Result) {
+func hostRemoveUserFromGroup(data any, callframe *wasmedge.CallingFrame, params []any) ([]any, wasmedge.Result) {
 	userIdPtr := params[0].(int32)
 	userIdLength := params[1].(int32)
 	groupNamePtr := params[2].(int32)
@@ -282,7 +282,7 @@ func hostRemoveUserFromGroup(data interface{}, callframe *wasmedge.CallingFrame,
 		mallocFunc: callframe.GetModule().FindFunction("malloc"),
 	}
 
-	returns := make([]interface{}, 1)
+	returns := make([]any, 1)
 	userId, err := wasmComponent.getWasmString(userIdPtr, userIdLength)
 	if err != nil {
 		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
@@ -312,7 +312,7 @@ func hostRemoveUserFromGroup(data interface{}, callframe *wasmedge.CallingFrame,
 	return returns, wasmedge.Result_Success
 }
 
-func hostAddUserToGroup(data interface{}, callframe *wasmedge.CallingFrame, params []interface{}) ([]interface{}, wasmedge.Result) {
+func hostAddUserToGroup(data any, callframe *wasmedge.CallingFrame, params []any) ([]any, wasmedge.Result) {
 	userIdPtr := params[0].(int32)
 	userIdLength := params[1].(int32)
 	groupNamePtr := params[2].(int32)
@@ -324,7 +324,7 @@ func hostAddUserToGroup(data interface{}, callframe *wasmedge.CallingFrame, para
 		mallocFunc: callframe.GetModule().FindFunction("malloc"),
 	}
 
-	returns := make([]interface{}, 1)
+	returns := make([]any, 1)
 	userId, err := wasmComponent.getWasmString(userIdPtr, userIdLength)
 	if err != nil {
 		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
@@ -354,7 +354,7 @@ func hostAddUserToGroup(data interface{}, callframe *wasmedge.CallingFrame, para
 	return returns, wasmedge.Result_Success
 }
 
-func hostCreateGroup(data interface{}, callframe *wasmedge.CallingFrame, params []interface{}) ([]interface{}, wasmedge.Result) {
+func hostCreateGroup(data any, callframe *wasmedge.CallingFrame, params []any) ([]any, wasmedge.Result) {
 	groupNamePtr := params[0].(int32)
 	groupNameLength := params[1].(int32)
 	participantIDsJsonPtr := params[2].(int32)
@@ -366,7 +366,7 @@ func hostCreateGroup(data interface{}, callframe *wasmedge.CallingFrame, params 
 		mallocFunc: callframe.GetModule().FindFunction("malloc"),
 	}
 
-	returns := make([]interface{}, 1)
+	returns := make([]any, 1)
 	participantIDsJsonStr, err := wasmComponent.getWasmString(participantIDsJsonPtr, participantIDsJsonLength)
 	if err != nil {
 		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
@@ -397,7 +397,7 @@ func hostCreateGroup(data interface{}, callframe *wasmedge.CallingFrame, params 
 	return returns, wasmedge.Result_Success
 }
 
-func hostDeleteGroup(data interface{}, callframe *wasmedge.CallingFrame, params []interface{}) ([]interface{}, wasmedge.Result) {
+func hostDeleteGroup(data any, callframe *wasmedge.CallingFrame, params []any) ([]any, wasmedge.Result) {
 	groupNamePtr := params[0].(int32)
 	groupNameLength := params[1].(int32)
 
@@ -407,7 +407,7 @@ func hostDeleteGroup(data interface{}, callframe *wasmedge.CallingFrame, params 
 		mallocFunc: callframe.GetModule().FindFunction("malloc"),
 	}
 
-	returns := make([]interface{}, 1)
+	returns := make([]any, 1)
 	groupName, err := wasmComponent.getWasmString(groupNamePtr, groupNameLength)
 	if err != nil {
 		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
