@@ -31,8 +31,8 @@ type wasmHostFunctionResponse struct {
 }
 
 func hostGet(data any, callframe *wasmedge.CallingFrame, params []any) ([]any, wasmedge.Result) {
-	paramPointer := params[0].(int32)
-	paramLength := params[1].(int32)
+	keyPointer := params[0].(int32)
+	keyLength := params[1].(int32)
 	tokenPointer := params[2].(int32)
 	tokenLength := params[3].(int32)
 
@@ -45,6 +45,7 @@ func hostGet(data any, callframe *wasmedge.CallingFrame, params []any) ([]any, w
 	}
 
 	returns := make([]any, 1)
+
 	var groupToken []string
 	err := wasmComponent.getWasmObject(tokenPointer, tokenLength, &groupToken)
 	if err != nil {
@@ -53,7 +54,7 @@ func hostGet(data any, callframe *wasmedge.CallingFrame, params []any) ([]any, w
 	}
 
 	// Read the result of the function.
-	key, err := wasmComponent.getWasmString(paramPointer, paramLength)
+	key, err := wasmComponent.getWasmString(keyPointer, keyLength)
 	if err != nil {
 		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
 		return returns, wasmedge.Result_Success
@@ -63,30 +64,25 @@ func hostGet(data any, callframe *wasmedge.CallingFrame, params []any) ([]any, w
 	res, err := client.SMIsMember(context.Background(), "data:"+collId+":groups", groupToken).Result()
 	authorized := slices.Contains(res, true)
 
-	var resPtr any
 	if err != nil {
-		resPtr = wasmComponent.writeError(REDIS_ERROR, err)
+		returns[0] = wasmComponent.writeError(REDIS_ERROR, err)
 	} else if !authorized {
-		resPtr = wasmComponent.writeError(UNAUTHORIZED, errors.New("current user is not authorized"))
+		returns[0] = wasmComponent.writeError(UNAUTHORIZED, errors.New("current user is not authorized"))
 	} else {
 		value, err := client.Get(context.Background(), key).Result()
 		if err != nil {
-			resPtr = wasmComponent.writeError(NOT_FOUND, err)
+			returns[0] = wasmComponent.writeError(NOT_FOUND, err)
 		} else {
-			resPtr = wasmComponent.writeResult(value)
+			returns[0] = wasmComponent.writeResult(value)
 		}
 	}
 
-	// Set the returns
-	returns[0] = resPtr.(int32)
-
-	// Return
 	return returns, wasmedge.Result_Success
 }
 
 func hostPut(data any, callframe *wasmedge.CallingFrame, params []any) ([]any, wasmedge.Result) {
-	namePointer := params[0].(int32)
-	nameLength := params[1].(int32)
+	keyPointer := params[0].(int32)
+	keyLength := params[1].(int32)
 	valuePointer := params[2].(int32)
 	valueLength := params[3].(int32)
 	tokenPointer := params[4].(int32)
@@ -101,6 +97,7 @@ func hostPut(data any, callframe *wasmedge.CallingFrame, params []any) ([]any, w
 	}
 
 	returns := make([]any, 1)
+
 	var groupToken []string
 	err := wasmComponent.getWasmObject(tokenPointer, tokenLength, &groupToken)
 	if err != nil {
@@ -108,7 +105,7 @@ func hostPut(data any, callframe *wasmedge.CallingFrame, params []any) ([]any, w
 		return returns, wasmedge.Result_Success
 	}
 
-	key, err := wasmComponent.getWasmString(namePointer, nameLength)
+	key, err := wasmComponent.getWasmString(keyPointer, keyLength)
 	if err != nil {
 		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
 		return returns, wasmedge.Result_Success
@@ -143,8 +140,8 @@ func hostPut(data any, callframe *wasmedge.CallingFrame, params []any) ([]any, w
 }
 
 func hostDelete(data any, callframe *wasmedge.CallingFrame, params []any) ([]any, wasmedge.Result) {
-	paramPointer := params[0].(int32)
-	paramLength := params[1].(int32)
+	keyPointer := params[0].(int32)
+	keyLength := params[1].(int32)
 	tokenPointer := params[2].(int32)
 	tokenLength := params[3].(int32)
 
@@ -160,31 +157,26 @@ func hostDelete(data any, callframe *wasmedge.CallingFrame, params []any) ([]any
 	err := wasmComponent.getWasmObject(tokenPointer, tokenLength, &groupToken)
 
 	// Read the result of the function.
-	key, err := wasmComponent.getWasmString(paramPointer, paramLength)
+	key, err := wasmComponent.getWasmString(keyPointer, keyLength)
 
 	collId := strings.Split(key, ":")[1]
 	res, err := client.SMIsMember(context.Background(), "data:"+collId+":groups", groupToken).Result()
 	authorized := slices.Contains(res, true)
 
-	var resPtr any
+	returns := make([]any, 1)
 	if err != nil {
-		resPtr = wasmComponent.writeError(REDIS_ERROR, err)
+		returns[0] = wasmComponent.writeError(REDIS_ERROR, err)
 	} else if !authorized {
-		resPtr = wasmComponent.writeError(UNAUTHORIZED, errors.New("current user is not authorized"))
+		returns[0] = wasmComponent.writeError(UNAUTHORIZED, errors.New("current user is not authorized"))
 	} else {
 		err = client.Del(context.Background(), key).Err()
 		if err != nil {
-			resPtr = wasmComponent.writeError(NOT_FOUND, err)
+			returns[0] = wasmComponent.writeError(NOT_FOUND, err)
 		} else {
-			resPtr = wasmComponent.writeResult("")
+			returns[0] = wasmComponent.writeResult("")
 		}
 	}
 
-	// Set the returns
-	returns := make([]any, 1)
-	returns[0] = resPtr.(int32)
-
-	// Return
 	return returns, wasmedge.Result_Success
 }
 
@@ -200,12 +192,13 @@ func hostCreateCollection(data any, callframe *wasmedge.CallingFrame, params []a
 		mallocFunc: callframe.GetModule().FindFunction("malloc"),
 	}
 
-	var metadata map[string]any
-	var resPtr any
+	returns := make([]any, 1)
 
+	var metadata map[string]any
 	err := wasmComponent.getWasmObject(metadataPointer, metadataLength, &metadata)
 	if err != nil {
-		resPtr = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
+		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
+		return returns, wasmedge.Result_Success
 	}
 
 	groups := metadata["groups"].([]any)
@@ -217,16 +210,11 @@ func hostCreateCollection(data any, callframe *wasmedge.CallingFrame, params []a
 	err = client.SAdd(context.Background(), key, groups).Err()
 
 	if err != nil {
-		resPtr = wasmComponent.writeError(REDIS_ERROR, err)
+		returns[0] = wasmComponent.writeError(REDIS_ERROR, err)
 	} else {
-		resPtr = wasmComponent.writeResult(collectionId)
+		returns[0] = wasmComponent.writeResult(collectionId)
 	}
 
-	// Set the returns
-	returns := make([]any, 1)
-	returns[0] = resPtr.(int32)
-
-	// Return
 	return returns, wasmedge.Result_Success
 }
 
@@ -255,6 +243,7 @@ func hostDeleteCollection(data any, callframe *wasmedge.CallingFrame, params []a
 		keys, cursor, err = client.Scan(context.Background(), cursor, "data:"+collectionId+":*", 10).Result()
 		if err != nil {
 			returns[0] = wasmComponent.writeError(REDIS_ERROR, err)
+			return returns, wasmedge.Result_Success
 		}
 
 		client.Del(context.Background(), keys...)
@@ -265,7 +254,6 @@ func hostDeleteCollection(data any, callframe *wasmedge.CallingFrame, params []a
 
 	//TODO: Forward the deletion process to other nodes with HTTP
 
-	// Return
 	returns[0] = wasmComponent.writeResult("")
 	return returns, wasmedge.Result_Success
 }
