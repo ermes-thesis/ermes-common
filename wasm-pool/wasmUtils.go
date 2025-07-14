@@ -42,7 +42,7 @@ func (wasmComponent *wasmComponents) writeError(errCode responseCode, err error)
 	codeBytes := make([]byte, 4)
 	binary.LittleEndian.PutUint32(codeBytes, uint32(len(response)))
 	response = slices.Insert(response, 0, codeBytes...)
-	err = wasmComponent.memory.SetData(response, uint(resPtr), uint(len(response)+4))
+	err = wasmComponent.memory.SetData(response, uint(resPtr), uint(len(response)))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func (wasmComponent *wasmComponents) writeResult(value string) int32 {
 	codeBytes := make([]byte, 4)
 	binary.LittleEndian.PutUint32(codeBytes, uint32(len(response)))
 	response = slices.Insert(response, 0, codeBytes...)
-	err = wasmComponent.memory.SetData(response, uint(resPtr), uint(len(response)+4))
+	err = wasmComponent.memory.SetData(response, uint(resPtr), uint(len(response)))
 	if err != nil {
 		return wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
 	}
