@@ -46,7 +46,7 @@ func hostGet(data any, callframe *wasmedge.CallingFrame, params []any) ([]any, w
 
 	returns := make([]any, 1)
 
-	var groupToken []string
+	var groupToken []any
 	err := wasmComponent.getWasmObject(tokenPointer, tokenLength, &groupToken)
 	if err != nil {
 		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
@@ -61,7 +61,7 @@ func hostGet(data any, callframe *wasmedge.CallingFrame, params []any) ([]any, w
 	}
 
 	collId := strings.Split(key, ":")[1]
-	res, err := client.SMIsMember(context.Background(), "data:"+collId+":groups", groupToken).Result()
+	res, err := client.SMIsMember(context.Background(), "data:"+collId+":groups", groupToken...).Result()
 	authorized := slices.Contains(res, true)
 
 	if err != nil {
@@ -98,7 +98,7 @@ func hostPut(data any, callframe *wasmedge.CallingFrame, params []any) ([]any, w
 
 	returns := make([]any, 1)
 
-	var groupToken []string
+	var groupToken []any
 	err := wasmComponent.getWasmObject(tokenPointer, tokenLength, &groupToken)
 	if err != nil {
 		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
@@ -112,7 +112,7 @@ func hostPut(data any, callframe *wasmedge.CallingFrame, params []any) ([]any, w
 	}
 
 	collId := strings.Split(key, ":")[1]
-	res, err := client.SMIsMember(context.Background(), "data:"+collId+":groups", groupToken).Result()
+	res, err := client.SMIsMember(context.Background(), "data:"+collId+":groups", groupToken...).Result()
 	if err != nil {
 		returns[0] = wasmComponent.writeError(REDIS_ERROR, err)
 		return returns, wasmedge.Result_Success
@@ -153,14 +153,14 @@ func hostDelete(data any, callframe *wasmedge.CallingFrame, params []any) ([]any
 		mallocFunc: callframe.GetModule().FindFunction("malloc"),
 	}
 
-	var groupToken []string
+	var groupToken []any
 	err := wasmComponent.getWasmObject(tokenPointer, tokenLength, &groupToken)
 
 	// Read the result of the function.
 	key, err := wasmComponent.getWasmString(keyPointer, keyLength)
 
 	collId := strings.Split(key, ":")[1]
-	res, err := client.SMIsMember(context.Background(), "data:"+collId+":groups", groupToken).Result()
+	res, err := client.SMIsMember(context.Background(), "data:"+collId+":groups", groupToken...).Result()
 	authorized := slices.Contains(res, true)
 
 	returns := make([]any, 1)
@@ -207,7 +207,7 @@ func hostCreateCollection(data any, callframe *wasmedge.CallingFrame, params []a
 
 	//TODO: mandare i metadati al cloud, che poi li manderà a sua volta al nodo con la geolocation specificata
 
-	err = client.SAdd(context.Background(), key, groups).Err()
+	err = client.SAdd(context.Background(), key, groups...).Err()
 
 	if err != nil {
 		returns[0] = wasmComponent.writeError(REDIS_ERROR, err)
