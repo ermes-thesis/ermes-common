@@ -13,23 +13,6 @@ import (
 	"strings"
 )
 
-type responseCode uint8
-
-const (
-	SUCCESS responseCode = iota
-	UNAUTHORIZED
-	NOT_FOUND
-	REDIS_ERROR
-	WASM_RUNTIME_ERROR
-	HTTP_ERROR
-	CENTRAL_REPO_ERROR
-)
-
-type wasmHostFunctionResponse struct {
-	Code    responseCode
-	Message string
-}
-
 func hostGet(data any, callframe *wasmedge.CallingFrame, params []any) ([]any, wasmedge.Result) {
 	keyPointer := params[0].(int32)
 	keyLength := params[1].(int32)
