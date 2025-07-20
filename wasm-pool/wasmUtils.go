@@ -24,7 +24,7 @@ type wasmHostFunctionResponse struct {
 	Message string
 }
 
-func (r *wasmHostFunctionResponse) Marshal() []byte {
+func (r *wasmHostFunctionResponse) MarshalBinary() ([]byte, error) {
 	bufLen := 5 + len(r.Message)
 	buf := make([]byte, bufLen)
 
@@ -32,7 +32,7 @@ func (r *wasmHostFunctionResponse) Marshal() []byte {
 	buf[4] = byte(r.Code)
 	copy(buf[5:], r.Message)
 
-	return buf
+	return buf, nil
 }
 
 type wasmComponents struct {
@@ -57,7 +57,7 @@ func (wasmComponent *wasmComponents) writeError(errCode responseCode, err error)
 		Code:    errCode,
 		Message: err.Error(),
 	}
-	response := functionResponse.Marshal()
+	response, _ := functionResponse.MarshalBinary()
 
 	mallocRes, err := wasmComponent.executor.Invoke(wasmComponent.mallocFunc, int32(len(response)))
 	if err != nil {
@@ -77,7 +77,7 @@ func (wasmComponent *wasmComponents) writeResult(value string) int32 {
 		Code:    SUCCESS,
 		Message: value,
 	}
-	response := functionResponse.Marshal()
+	response, _ := functionResponse.MarshalBinary()
 
 	mallocRes, err := wasmComponent.executor.Invoke(wasmComponent.mallocFunc, int32(len(response)))
 	if err != nil {

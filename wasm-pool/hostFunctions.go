@@ -115,7 +115,7 @@ func hostPut(data any, callframe *wasmedge.CallingFrame, params []any) ([]any, w
 		if err != nil {
 			returns[0] = wasmComponent.writeError(REDIS_ERROR, err)
 		} else {
-			returns[0] = wasmComponent.writeResult("")
+			returns[0] = int32(SUCCESS)
 		}
 	}
 
@@ -156,7 +156,7 @@ func hostDelete(data any, callframe *wasmedge.CallingFrame, params []any) ([]any
 		if err != nil {
 			returns[0] = wasmComponent.writeError(NOT_FOUND, err)
 		} else {
-			returns[0] = wasmComponent.writeResult("")
+			returns[0] = int32(SUCCESS)
 		}
 	}
 
@@ -237,7 +237,7 @@ func hostDeleteCollection(data any, callframe *wasmedge.CallingFrame, params []a
 
 	//TODO: Forward the deletion process to other nodes with HTTP
 
-	returns[0] = wasmComponent.writeResult("")
+	returns[0] = int32(SUCCESS)
 	return returns, wasmedge.Result_Success
 }
 
@@ -276,7 +276,7 @@ func hostRemoveUserFromGroup(data any, callframe *wasmedge.CallingFrame, params 
 	_ = res.Body.Close()
 
 	if res.StatusCode == http.StatusOK {
-		returns[0] = wasmComponent.writeResult("")
+		returns[0] = int32(SUCCESS)
 	} else {
 		returns[0] = wasmComponent.writeError(CENTRAL_REPO_ERROR, errors.New(res.Status))
 	}
@@ -318,7 +318,7 @@ func hostAddUserToGroup(data any, callframe *wasmedge.CallingFrame, params []any
 	_ = res.Body.Close()
 
 	if res.StatusCode == http.StatusOK {
-		returns[0] = wasmComponent.writeResult("")
+		returns[0] = int32(SUCCESS)
 	} else {
 		returns[0] = wasmComponent.writeError(CENTRAL_REPO_ERROR, errors.New(res.Status))
 	}
@@ -361,7 +361,7 @@ func hostCreateGroup(data any, callframe *wasmedge.CallingFrame, params []any) (
 	_ = res.Body.Close()
 
 	if res.StatusCode == http.StatusCreated {
-		returns[0] = wasmComponent.writeResult("")
+		returns[0] = int32(SUCCESS)
 	} else {
 		returns[0] = wasmComponent.writeError(CENTRAL_REPO_ERROR, errors.New(res.Status))
 	}
@@ -400,7 +400,7 @@ func hostDeleteGroup(data any, callframe *wasmedge.CallingFrame, params []any) (
 	_ = res.Body.Close()
 
 	if res.StatusCode == http.StatusOK {
-		returns[0] = wasmComponent.writeResult("")
+		returns[0] = int32(SUCCESS)
 	} else {
 		returns[0] = wasmComponent.writeError(CENTRAL_REPO_ERROR, errors.New(res.Status))
 	}
