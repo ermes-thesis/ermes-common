@@ -52,6 +52,7 @@ func hostGet(data any, callframe *wasmedge.CallingFrame, params []any) ([]any, w
 	} else if !authorized {
 		returns[0] = wasmComponent.writeError(UNAUTHORIZED, errors.New("current user is not authorized"))
 	} else {
+		//TODO: fare una chiamata remota se la collection non è presente in questo nodo
 		value, err := client.Get(context.Background(), key).Result()
 		if err != nil {
 			returns[0] = wasmComponent.writeError(NOT_FOUND, err)
@@ -112,6 +113,7 @@ func hostPut(data any, callframe *wasmedge.CallingFrame, params []any) ([]any, w
 			return returns, wasmedge.Result_Success
 		}
 		err = client.Set(context.Background(), key, value, 0).Err()
+		//TODO: inoltrare la put agli altri nodi
 		if err != nil {
 			returns[0] = wasmComponent.writeError(REDIS_ERROR, err)
 		} else {
@@ -153,8 +155,136 @@ func hostDelete(data any, callframe *wasmedge.CallingFrame, params []any) ([]any
 		returns[0] = wasmComponent.writeError(UNAUTHORIZED, errors.New("current user is not authorized"))
 	} else {
 		err = client.Del(context.Background(), key).Err()
+
+		//TODO: inoltrare la l'eliminazione agli altri nodi
 		if err != nil {
 			returns[0] = wasmComponent.writeError(NOT_FOUND, err)
+		} else {
+			returns[0] = int32(SUCCESS)
+		}
+	}
+
+	return returns, wasmedge.Result_Success
+}
+
+func hostAddGroupToCollection(data any, callframe *wasmedge.CallingFrame, params []any) ([]any, wasmedge.Result) {
+	collectionIdPointer := params[0].(int32)
+	collectionIdLength := params[1].(int32)
+	groupNamePointer := params[2].(int32)
+	groupNameLength := params[3].(int32)
+	tokenPointer := params[4].(int32)
+	tokenLength := params[5].(int32)
+
+	client := data.(*redis.Client)
+
+	wasmComponent := wasmComponents{
+		memory:     callframe.GetMemoryByIndex(0),
+		executor:   callframe.GetExecutor(),
+		mallocFunc: callframe.GetModule().FindFunction("malloc"),
+	}
+	returns := make([]any, 1)
+
+	var groupToken []any
+	err := wasmComponent.getWasmObject(tokenPointer, tokenLength, &groupToken)
+	if err != nil {
+		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
+		return returns, wasmedge.Result_Success
+	}
+
+	collectionId, err := wasmComponent.getWasmString(collectionIdPointer, collectionIdLength)
+	if err != nil {
+		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
+		return returns, wasmedge.Result_Success
+	}
+
+	key := "data:" + collectionId + ":groups"
+	res, err := client.SMIsMember(context.Background(), key, groupToken...).Result()
+	if err != nil {
+		returns[0] = wasmComponent.writeError(REDIS_ERROR, err)
+		return returns, wasmedge.Result_Success
+	}
+
+	authorized := slices.Contains(res, true)
+
+	if !authorized {
+		returns[0] = wasmComponent.writeError(UNAUTHORIZED, errors.New("current user is not authorized"))
+	} else {
+		groupName, err := wasmComponent.getWasmString(groupNamePointer, groupNameLength)
+		if err != nil {
+			returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
+			return returns, wasmedge.Result_Success
+		}
+
+		err = client.SAdd(context.Background(), key, groupName).Err()
+
+		//TODO: inoltrare l'aggiunta' del gruppo agli altri nodi
+		//TODO: aggiungere il gruppo anche nei metadati
+
+		if err != nil {
+			returns[0] = wasmComponent.writeError(REDIS_ERROR, err)
+		} else {
+			returns[0] = int32(SUCCESS)
+		}
+	}
+
+	return returns, wasmedge.Result_Success
+}
+
+func hostRemoveGroupFromCollection(data any, callframe *wasmedge.CallingFrame, params []any) ([]any, wasmedge.Result) {
+	collectionIdPointer := params[0].(int32)
+	collectionIdLength := params[1].(int32)
+	groupNamePointer := params[2].(int32)
+	groupNameLength := params[3].(int32)
+	tokenPointer := params[4].(int32)
+	tokenLength := params[5].(int32)
+
+	client := data.(*redis.Client)
+
+	wasmComponent := wasmComponents{
+		memory:     callframe.GetMemoryByIndex(0),
+		executor:   callframe.GetExecutor(),
+		mallocFunc: callframe.GetModule().FindFunction("malloc"),
+	}
+	returns := make([]any, 1)
+
+	var groupToken []any
+	err := wasmComponent.getWasmObject(tokenPointer, tokenLength, &groupToken)
+	if err != nil {
+		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
+		return returns, wasmedge.Result_Success
+	}
+
+	collectionId, err := wasmComponent.getWasmString(collectionIdPointer, collectionIdLength)
+	if err != nil {
+		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
+		return returns, wasmedge.Result_Success
+	}
+
+	key := "data:" + collectionId + ":groups"
+	res, err := client.SMIsMember(context.Background(), key, groupToken...).Result()
+	if err != nil {
+		returns[0] = wasmComponent.writeError(REDIS_ERROR, err)
+		return returns, wasmedge.Result_Success
+	}
+
+	authorized := slices.Contains(res, true)
+
+	if !authorized {
+		returns[0] = wasmComponent.writeError(UNAUTHORIZED, errors.New("current user is not authorized"))
+	} else {
+		groupName, err := wasmComponent.getWasmString(groupNamePointer, groupNameLength)
+		if err != nil {
+			returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
+			return returns, wasmedge.Result_Success
+		}
+
+		err = client.SRem(context.Background(), key, groupName).Err()
+
+		//TODO: inoltrare la rimozione del gruppo agli altri nodi
+		//TODO: rimuovere il gruppo anche dai metadati
+
+		if err != nil {
+			returns[0] = wasmComponent.writeError(REDIS_ERROR, err)
 		} else {
 			returns[0] = int32(SUCCESS)
 		}
