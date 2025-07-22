@@ -3,16 +3,14 @@ package test
 import (
 	"context"
 	"fmt"
-	"os"
-	"strconv"
-	"strings"
-	"testing"
-	"time"
-
 	"github.com/ermes-thesis/ermes-wasm-pool/wasm-pool"
 	"github.com/redis/go-redis/v9"
 	"github.com/testcontainers/testcontainers-go"
 	tcredis "github.com/testcontainers/testcontainers-go/modules/redis"
+	"os"
+	"strings"
+	"testing"
+	"time"
 )
 
 func TestMain(m *testing.M) {
@@ -119,6 +117,7 @@ func BenchmarkWasmPool(b *testing.B) {
 func getTestReqAndCtx(userId string) (string, string) {
 	req := "{\"prova\": \"ciao\"}"
 
+	timestamp, _ := time.Now().MarshalJSON()
 	ctx := "{" +
 		"\"userId\": \"" + userId + "\"," +
 		"\"groupList\": [\"test\"]," +
@@ -130,7 +129,7 @@ func getTestReqAndCtx(userId string) (string, string) {
 		"\"consistency\": 1," +
 		"\"name\": \"dati\"," +
 		"\"owner\": \"pippo\"," +
-		"\"created_at\": " + strconv.FormatInt(time.Now().UnixMilli(), 10) +
+		"\"createdAt\": " + string(timestamp) + "" +
 		"}" +
 		"}" +
 		"]" +
