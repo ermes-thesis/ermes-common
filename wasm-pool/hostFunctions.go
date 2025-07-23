@@ -64,6 +64,52 @@ func hostGet(data any, callframe *wasmedge.CallingFrame, params []any) ([]any, w
 	return returns, wasmedge.Result_Success
 }
 
+func hostMultipleGet(data interface{}, callframe *wasmedge.CallingFrame, params []interface{}) ([]interface{}, wasmedge.Result) {
+	keysPointer := params[0].(int32)
+	keysLength := params[1].(int32)
+	tokenPointer := params[2].(int32)
+	tokenLength := params[3].(int32)
+	client := data.(*redis.Client)
+
+	wasmComponent := wasmComponents{
+		memory:     callframe.GetMemoryByIndex(0),
+		executor:   callframe.GetExecutor(),
+		mallocFunc: callframe.GetModule().FindFunction("malloc"),
+	}
+
+	returns := make([]interface{}, 1)
+
+	var keys []string
+	err := wasmComponent.getWasmObject(keysPointer, keysLength, &keys)
+	if err != nil {
+		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
+		return returns, wasmedge.Result_Success
+	}
+
+	var groupToken []string
+	err = wasmComponent.getWasmObject(tokenPointer, tokenLength, &groupToken)
+	if err != nil {
+		returns[0] = wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
+		return returns, wasmedge.Result_Success
+	}
+	collId := strings.Split(keys[0], ":")[1]
+	res, err := client.SMIsMember(context.Background(), "data:"+collId+":groups", groupToken).Result()
+	authorized := slices.Contains(res, true)
+
+	var resPtr any
+	if err != nil {
+		resPtr = wasmComponent.writeError(REDIS_ERROR, err)
+	} else if !authorized {
+		resPtr = wasmComponent.writeError(UNAUTHORIZED, errors.New("current user is not authorized"))
+	} else {
+		values, _ := client.MGet(context.Background(), keys...).Result()
+		resPtr = wasmComponent.writeArrayResult(values)
+	}
+
+	returns[0] = resPtr.(int32)
+	return returns, wasmedge.Result_Success
+}
+
 func hostPut(data any, callframe *wasmedge.CallingFrame, params []any) ([]any, wasmedge.Result) {
 	keyPointer := params[0].(int32)
 	keyLength := params[1].(int32)
