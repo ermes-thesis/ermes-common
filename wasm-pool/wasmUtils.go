@@ -19,18 +19,31 @@ const (
 	CENTRAL_REPO_ERROR
 )
 
-type wasmHostFunctionResponse struct {
+type wasmHostFunctionResponse[T any] struct {
 	Code    responseCode
-	Message string
+	Message T
 }
 
-func (r *wasmHostFunctionResponse) MarshalBinary() ([]byte, error) {
-	bufLen := 5 + len(r.Message)
+func (r *wasmHostFunctionResponse[T]) MarshalBinary() ([]byte, error) {
+	var messageBytes []byte
+	var err error
+
+	switch v := any(r.Message).(type) {
+	case string:
+		messageBytes = []byte(v) // use raw string bytes, no quotes
+	default:
+		messageBytes, err = json.Marshal(v)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	bufLen := 5 + len(messageBytes)
 	buf := make([]byte, bufLen)
 
 	binary.LittleEndian.PutUint32(buf, uint32(bufLen))
 	buf[4] = byte(r.Code)
-	copy(buf[5:], r.Message)
+	copy(buf[5:], messageBytes)
 
 	return buf, nil
 }
@@ -53,7 +66,7 @@ func (wasmComponent *wasmComponents) getWasmObject(ptr int32, len int32, result 
 }
 
 func (wasmComponent *wasmComponents) writeError(errCode responseCode, err error) int32 {
-	functionResponse := wasmHostFunctionResponse{
+	functionResponse := wasmHostFunctionResponse[string]{
 		Code:    errCode,
 		Message: err.Error(),
 	}
@@ -73,11 +86,38 @@ func (wasmComponent *wasmComponents) writeError(errCode responseCode, err error)
 }
 
 func (wasmComponent *wasmComponents) writeResult(value string) int32 {
-	functionResponse := wasmHostFunctionResponse{
+	functionResponse := wasmHostFunctionResponse[string]{
 		Code:    SUCCESS,
 		Message: value,
 	}
-	response, _ := functionResponse.MarshalBinary()
+	response, err := functionResponse.MarshalBinary()
+	if err != nil {
+		return wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
+	}
+
+	mallocRes, err := wasmComponent.executor.Invoke(wasmComponent.mallocFunc, int32(len(response)))
+	if err != nil {
+		return wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
+	}
+
+	resPtr := mallocRes[0].(int32)
+	err = wasmComponent.memory.SetData(response, uint(resPtr), uint(len(response)))
+	if err != nil {
+		return wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
+	}
+	return resPtr
+}
+
+func (wasmComponent *wasmComponents) writeArrayResult(values []any) any {
+	functionResponse := wasmHostFunctionResponse[[]any]{
+		Code:    SUCCESS,
+		Message: values,
+	}
+	response, err := functionResponse.MarshalBinary()
+
+	if err != nil {
+		return wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
+	}
 
 	mallocRes, err := wasmComponent.executor.Invoke(wasmComponent.mallocFunc, int32(len(response)))
 	if err != nil {
