@@ -45,6 +45,8 @@ func TestWasmPool(t *testing.T) {
 
 	client.SAdd(context.Background(), "data:255ef4af-3a49-4382-a90d-6524bdee5ad1:groups", "test")
 	client.Set(context.Background(), "data:255ef4af-3a49-4382-a90d-6524bdee5ad1:battiti", "100", 0)
+	client.Set(context.Background(), "data:255ef4af-3a49-4382-a90d-6524bdee5ad1:testMGET", "200", 0)
+	client.Set(context.Background(), "data:255ef4af-3a49-4382-a90d-6524bdee5ad1:testMGET2", "300", 0)
 
 	pool := wasm.NewExecutorPool(10)
 	defer pool.Close()
@@ -58,7 +60,10 @@ func TestWasmPool(t *testing.T) {
 	fmt.Println("Auth function:", userdId, code)
 
 	req, ctx := getTestReqAndCtx(userdId)
-	response, resCode := executor.InvokeFn("function", req, ctx)
+	//response, resCode := executor.InvokeFn("function", req, ctx)
+	//fmt.Println("Invoke function:", string(response), resCode)
+
+	response, resCode := executor.InvokeFn("provaNuovoNome1.2.2", req, ctx)
 	fmt.Println("Invoke function:", string(response), resCode)
 
 	if resCode != 200 {
@@ -89,6 +94,7 @@ func BenchmarkWasmPool(b *testing.B) {
 	})
 
 	client.Set(context.Background(), "data:255ef4af-3a49-4382-a90d-6524bdee5ad1:battiti", "100", 0)
+	client.Set(context.Background(), "data:255ef4af-3a49-4382-a90d-6524bdee5ad1:testMGET", "200", 0)
 
 	pool := wasm.NewExecutorPool(10)
 	defer pool.Close()
