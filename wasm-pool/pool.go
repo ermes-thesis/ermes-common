@@ -8,12 +8,6 @@ import (
 	"sync"
 )
 
-type WasmExecutor struct {
-	vm    *wasmedge.VM
-	mu    sync.Mutex
-	inUse bool
-}
-
 type ExecutorPool struct {
 	instances []*WasmExecutor
 	mu        sync.Mutex

@@ -4,9 +4,17 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"github.com/second-state/WasmEdge-go/wasmedge"
 	"log"
 	"strconv"
+	"sync"
 )
+
+type WasmExecutor struct {
+	vm    *wasmedge.VM
+	mu    sync.Mutex
+	inUse bool
+}
 
 type wasmResponse struct {
 	HttpCode int `json:"http_code"`
