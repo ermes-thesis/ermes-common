@@ -3,8 +3,6 @@ module github.com/ermes-thesis/ermes-wasm-pool
 go 1.24
 
 require (
-	github.com/google/uuid v1.6.0
-	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/redis/go-redis/v9 v9.9.0
 	github.com/second-state/WasmEdge-go v0.14.0
 	github.com/testcontainers/testcontainers-go v0.37.0
@@ -32,6 +30,7 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/klauspost/compress v1.17.4 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect

@@ -3,28 +3,24 @@ package wasm
 import (
 	"encoding/binary"
 	"encoding/json"
-	"github.com/second-state/WasmEdge-go/wasmedge"
 	"log"
+
+	"github.com/second-state/WasmEdge-go/wasmedge"
 )
 
-type responseCode uint8
+type ResponseCode uint8
 
 const (
-	SUCCESS responseCode = iota
-	UNAUTHORIZED
-	NOT_FOUND
-	REDIS_ERROR
+	SUCCESS ResponseCode = iota
 	WASM_RUNTIME_ERROR
-	HTTP_ERROR
-	CENTRAL_REPO_ERROR
 )
 
-type wasmHostFunctionResponse[T any] struct {
-	Code    responseCode
+type WasmHostFunctionResponse[T any] struct {
+	Code    ResponseCode
 	Message T
 }
 
-func (r *wasmHostFunctionResponse[T]) MarshalBinary() ([]byte, error) {
+func (r *WasmHostFunctionResponse[T]) MarshalBinary() ([]byte, error) {
 	var messageBytes []byte
 	var err error
 
@@ -48,86 +44,86 @@ func (r *wasmHostFunctionResponse[T]) MarshalBinary() ([]byte, error) {
 	return buf, nil
 }
 
-type wasmComponents struct {
-	memory     *wasmedge.Memory
-	executor   *wasmedge.Executor
-	mallocFunc *wasmedge.Function
+type WasmComponents struct {
+	Memory     *wasmedge.Memory
+	Executor   *wasmedge.Executor
+	MallocFunc *wasmedge.Function
 }
 
-func (wasmComponent *wasmComponents) getWasmString(ptr int32, len int32) (string, error) {
-	res, err := wasmComponent.memory.GetData(uint(ptr), uint(len))
+func (wasmComponent *WasmComponents) GetWasmString(ptr int32, len int32) (string, error) {
+	res, err := wasmComponent.Memory.GetData(uint(ptr), uint(len))
 	return string(res), err
 }
 
-func (wasmComponent *wasmComponents) getWasmObject(ptr int32, len int32, result any) error {
-	res, err := wasmComponent.memory.GetData(uint(ptr), uint(len))
+func (wasmComponent *WasmComponents) GetWasmObject(ptr int32, len int32, result any) error {
+	res, err := wasmComponent.Memory.GetData(uint(ptr), uint(len))
 	err = json.Unmarshal(res, result)
 	return err
 }
 
-func (wasmComponent *wasmComponents) writeError(errCode responseCode, err error) int32 {
-	functionResponse := wasmHostFunctionResponse[string]{
+func (wasmComponent *WasmComponents) WriteError(errCode ResponseCode, err error) int32 {
+	functionResponse := WasmHostFunctionResponse[string]{
 		Code:    errCode,
 		Message: err.Error(),
 	}
 	response, _ := functionResponse.MarshalBinary()
 
-	mallocRes, err := wasmComponent.executor.Invoke(wasmComponent.mallocFunc, int32(len(response)))
+	mallocRes, err := wasmComponent.Executor.Invoke(wasmComponent.MallocFunc, int32(len(response)))
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	resPtr := mallocRes[0].(int32)
-	err = wasmComponent.memory.SetData(response, uint(resPtr), uint(len(response)))
+	err = wasmComponent.Memory.SetData(response, uint(resPtr), uint(len(response)))
 	if err != nil {
 		log.Fatal(err)
 	}
 	return resPtr
 }
 
-func (wasmComponent *wasmComponents) writeResult(value string) int32 {
-	functionResponse := wasmHostFunctionResponse[string]{
+func (wasmComponent *WasmComponents) WriteResult(value string) int32 {
+	functionResponse := WasmHostFunctionResponse[string]{
 		Code:    SUCCESS,
 		Message: value,
 	}
 	response, err := functionResponse.MarshalBinary()
 	if err != nil {
-		return wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
+		return wasmComponent.WriteError(WASM_RUNTIME_ERROR, err)
 	}
 
-	mallocRes, err := wasmComponent.executor.Invoke(wasmComponent.mallocFunc, int32(len(response)))
+	mallocRes, err := wasmComponent.Executor.Invoke(wasmComponent.MallocFunc, int32(len(response)))
 	if err != nil {
-		return wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
+		return wasmComponent.WriteError(WASM_RUNTIME_ERROR, err)
 	}
 
 	resPtr := mallocRes[0].(int32)
-	err = wasmComponent.memory.SetData(response, uint(resPtr), uint(len(response)))
+	err = wasmComponent.Memory.SetData(response, uint(resPtr), uint(len(response)))
 	if err != nil {
-		return wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
+		return wasmComponent.WriteError(WASM_RUNTIME_ERROR, err)
 	}
 	return resPtr
 }
 
-func (wasmComponent *wasmComponents) writeArrayResult(values []any) any {
-	functionResponse := wasmHostFunctionResponse[[]any]{
+func (wasmComponent *WasmComponents) WriteArrayResult(values []any) any {
+	functionResponse := WasmHostFunctionResponse[[]any]{
 		Code:    SUCCESS,
 		Message: values,
 	}
 	response, err := functionResponse.MarshalBinary()
 
 	if err != nil {
-		return wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
+		return wasmComponent.WriteError(WASM_RUNTIME_ERROR, err)
 	}
 
-	mallocRes, err := wasmComponent.executor.Invoke(wasmComponent.mallocFunc, int32(len(response)))
+	mallocRes, err := wasmComponent.Executor.Invoke(wasmComponent.MallocFunc, int32(len(response)))
 	if err != nil {
-		return wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
+		return wasmComponent.WriteError(WASM_RUNTIME_ERROR, err)
 	}
 
 	resPtr := mallocRes[0].(int32)
-	err = wasmComponent.memory.SetData(response, uint(resPtr), uint(len(response)))
+	err = wasmComponent.Memory.SetData(response, uint(resPtr), uint(len(response)))
 	if err != nil {
-		return wasmComponent.writeError(WASM_RUNTIME_ERROR, err)
+		return wasmComponent.WriteError(WASM_RUNTIME_ERROR, err)
 	}
 	return resPtr
 }
