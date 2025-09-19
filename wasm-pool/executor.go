@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"sync"
 
 	"github.com/second-state/WasmEdge-go/wasmedge"
@@ -29,6 +30,12 @@ type WasmResponse struct {
 func NewWasmExecutor(conf *wasmedge.Configure) *WasmExecutor {
 	vm := wasmedge.NewVMWithConfig(conf)
 	wasi := vm.GetImportModule(wasmedge.WASI)
+
+	err := os.MkdirAll("./sandbox", os.ModePerm)
+	if err != nil {
+		log.Fatalf("Failed to create sandbox directory: %v", err)
+	}
+
 	wasi.InitWasi(
 		nil,
 		nil,
