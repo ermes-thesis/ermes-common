@@ -23,8 +23,11 @@ type WasmExecutor struct {
 }
 
 type WasmResponse struct {
-	HttpCode int `json:"http_code"`
-	Response any `json:"response"`
+	HttpCode            int                          `json:"http_code"`
+	Response            any                          `json:"response"`
+	CollectionsToCommit map[string]map[string]string `json:"collections_to_commit"`
+	DeletedRecords      map[string]string            `json:"deleted_records"`
+	DeletedCollections  []string                     `json:"deleted_collections"`
 }
 
 func NewWasmExecutor(conf *wasmedge.Configure) *WasmExecutor {
