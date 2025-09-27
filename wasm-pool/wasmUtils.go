@@ -11,8 +11,8 @@ import (
 type ResponseCode uint8
 
 const (
-	SUCCESS ResponseCode = iota
-	WASM_RUNTIME_ERROR
+	Success ResponseCode = iota
+	WasmRuntimeError
 )
 
 type WasmHostFunctionResponse[T any] struct {
@@ -83,47 +83,47 @@ func (wasmComponent *WasmComponents) WriteError(errCode ResponseCode, err error)
 
 func (wasmComponent *WasmComponents) WriteResult(value string) int32 {
 	functionResponse := WasmHostFunctionResponse[string]{
-		Code:    SUCCESS,
+		Code:    Success,
 		Message: value,
 	}
 	response, err := functionResponse.MarshalBinary()
 	if err != nil {
-		return wasmComponent.WriteError(WASM_RUNTIME_ERROR, err)
+		return wasmComponent.WriteError(WasmRuntimeError, err)
 	}
 
 	mallocRes, err := wasmComponent.Executor.Invoke(wasmComponent.MallocFunc, int32(len(response)))
 	if err != nil {
-		return wasmComponent.WriteError(WASM_RUNTIME_ERROR, err)
+		return wasmComponent.WriteError(WasmRuntimeError, err)
 	}
 
 	resPtr := mallocRes[0].(int32)
 	err = wasmComponent.Memory.SetData(response, uint(resPtr), uint(len(response)))
 	if err != nil {
-		return wasmComponent.WriteError(WASM_RUNTIME_ERROR, err)
+		return wasmComponent.WriteError(WasmRuntimeError, err)
 	}
 	return resPtr
 }
 
 func (wasmComponent *WasmComponents) WriteArrayResult(values []any) any {
 	functionResponse := WasmHostFunctionResponse[[]any]{
-		Code:    SUCCESS,
+		Code:    Success,
 		Message: values,
 	}
 	response, err := functionResponse.MarshalBinary()
 
 	if err != nil {
-		return wasmComponent.WriteError(WASM_RUNTIME_ERROR, err)
+		return wasmComponent.WriteError(WasmRuntimeError, err)
 	}
 
 	mallocRes, err := wasmComponent.Executor.Invoke(wasmComponent.MallocFunc, int32(len(response)))
 	if err != nil {
-		return wasmComponent.WriteError(WASM_RUNTIME_ERROR, err)
+		return wasmComponent.WriteError(WasmRuntimeError, err)
 	}
 
 	resPtr := mallocRes[0].(int32)
 	err = wasmComponent.Memory.SetData(response, uint(resPtr), uint(len(response)))
 	if err != nil {
-		return wasmComponent.WriteError(WASM_RUNTIME_ERROR, err)
+		return wasmComponent.WriteError(WasmRuntimeError, err)
 	}
 	return resPtr
 }
