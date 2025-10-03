@@ -1,55 +1,19 @@
-package wasm
+package executor
 
 import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"log"
-	"os"
-	"sync"
-
 	"github.com/second-state/WasmEdge-go/wasmedge"
+	"log"
 )
 
-type Executor interface {
-	Invoke(fnName string, entrypoint string, input ...[]byte) WasmResponse
-	Release()
-}
-
-type WasmExecutor struct {
+type WasmedgeExecutor struct {
 	vm    *wasmedge.VM
-	mu    sync.Mutex
 	inUse bool
 }
 
-type WasmResponse struct {
-	HttpCode            int                          `json:"http_code"`
-	Response            any                          `json:"response"`
-	CollectionsToCommit map[string]map[string]string `json:"collections_to_commit"`
-	DeletedRecords      map[string][]string          `json:"deleted_records"`
-	DeletedCollections  []string                     `json:"deleted_collections"`
-}
-
-func NewWasmExecutor(conf *wasmedge.Configure) *WasmExecutor {
-	vm := wasmedge.NewVMWithConfig(conf)
-	wasi := vm.GetImportModule(wasmedge.WASI)
-
-	err := os.MkdirAll("./sandbox", os.ModePerm)
-	if err != nil {
-		log.Fatalf("Failed to create sandbox directory: %v", err)
-	}
-
-	wasi.InitWasi(
-		nil,
-		nil,
-		[]string{".:./sandbox"},
-	)
-	exec := &WasmExecutor{vm: vm, inUse: false}
-
-	return exec
-}
-
-func (exec *WasmExecutor) Invoke(fnName string, entrypoint string, input ...[]byte) WasmResponse {
+func (exec *WasmedgeExecutor) Invoke(fnName string, entrypoint string, input ...[]byte) WasmResponse {
 	vm := exec.vm
 	err := vm.LoadWasmFile(fnName + ".wasm")
 	if err != nil {
@@ -130,9 +94,33 @@ func (exec *WasmExecutor) Invoke(fnName string, entrypoint string, input ...[]by
 	return wasmResp
 }
 
-func (exec *WasmExecutor) Release() {
-	exec.mu.Lock()
-	defer exec.mu.Unlock()
-
+func (exec *WasmedgeExecutor) Release() {
 	exec.inUse = false
+}
+
+func (exec *WasmedgeExecutor) IsInUse() bool {
+	return exec.inUse
+}
+
+func (exec *WasmedgeExecutor) SetInUse() {
+	exec.inUse = true
+}
+
+func (exec *WasmedgeExecutor) Close() {
+	exec.vm.Release()
+}
+
+func (exec *WasmedgeExecutor) RegisterHostFns(hostFns map[string]any) error {
+	// Create the module instance with the module name "extern".
+	externMod := wasmedge.NewModule("extern")
+
+	for fnName, fn := range hostFns {
+		wasmedgeFn, ok := fn.(*wasmedge.Function)
+		if !ok {
+			log.Fatalf("Function %s is not a function", fnName)
+		}
+		externMod.AddFunction(fnName, wasmedgeFn)
+	}
+
+	return exec.vm.RegisterModule(externMod)
 }

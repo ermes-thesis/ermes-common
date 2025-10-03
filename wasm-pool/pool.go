@@ -1,6 +1,8 @@
 package wasm
 
 import (
+	"github.com/bytecodealliance/wasmtime-go/v37"
+	"github.com/ermes-thesis/ermes-wasm-pool/wasm-pool/executor"
 	"log"
 	"sync"
 
@@ -8,30 +10,44 @@ import (
 )
 
 type ExecutorPool interface {
-	RegisterModule(module *wasmedge.Module) error
-	Acquire() Executor
+	RegisterHostFns(fns map[string]any) error
+	Acquire() executor.Executor
 	Close()
 }
 
 type WasmExecutorPool struct {
-	instances []*WasmExecutor
+	instances []executor.Executor
 	mu        sync.Mutex
 }
 
-func NewExecutorPool(poolSize int) *WasmExecutorPool {
+func NewWasmedgeExecutorPool(poolSize int) *WasmExecutorPool {
 	pool := &WasmExecutorPool{}
 	wasmedge.SetLogErrorLevel()
 	conf := wasmedge.NewConfigure(wasmedge.WASI)
 	for i := 0; i < poolSize; i++ {
-		pool.instances = append(pool.instances, NewWasmExecutor(conf))
+		pool.instances = append(pool.instances, executor.NewWasmedgeExecutor(conf))
 	}
 	conf.Release()
 	return pool
 }
 
-func (p *WasmExecutorPool) RegisterModule(module *wasmedge.Module) error {
-	for _, executor := range p.instances {
-		err := executor.vm.RegisterModule(module)
+func NewWasmtimeExecutorPool(poolSize int) *WasmExecutorPool {
+	pool := &WasmExecutorPool{}
+
+	for i := 0; i < poolSize; i++ {
+		// Configure WASI imports to write stdout into a file, and then create
+		// a `Store` using this wasi configuration.
+		wasiConfig := wasmtime.NewWasiConfig()
+		pool.instances = append(pool.instances, executor.NewWasmtimeExecutor(wasiConfig))
+		wasiConfig.Close()
+	}
+
+	return pool
+}
+
+func (p *WasmExecutorPool) RegisterHostFns(fns map[string]any) error {
+	for _, exec := range p.instances {
+		err := exec.RegisterHostFns(fns)
 		if err != nil {
 			log.Fatalf("Failed to register module: %v", err)
 			return err
@@ -40,15 +56,15 @@ func (p *WasmExecutorPool) RegisterModule(module *wasmedge.Module) error {
 	return nil
 }
 
-func (p *WasmExecutorPool) Acquire() Executor {
+func (p *WasmExecutorPool) Acquire() executor.Executor {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	for index, executor := range p.instances {
-		if !executor.inUse {
+	for index, exec := range p.instances {
+		if !exec.IsInUse() {
 			log.Default().Println("Acquired executor N. ", index)
-			executor.inUse = true
-			return executor
+			exec.SetInUse()
+			return exec
 		}
 	}
 
@@ -59,9 +75,7 @@ func (p *WasmExecutorPool) Close() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	for _, executor := range p.instances {
-		executor.mu.Lock()
-		executor.vm.Release()
-		executor.mu.Unlock()
+	for _, exec := range p.instances {
+		exec.Close()
 	}
 }
