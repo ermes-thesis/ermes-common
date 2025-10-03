@@ -8,7 +8,7 @@ import (
 )
 
 func TestWasmPool(t *testing.T) {
-	pool := wasm.NewExecutorPool(10)
+	pool := wasm.NewWasmedgeExecutorPool(10)
 	defer pool.Close()
 
 	executor := pool.Acquire()
@@ -23,7 +23,7 @@ func TestWasmPool(t *testing.T) {
 }
 
 func BenchmarkWasmPool(b *testing.B) {
-	pool := wasm.NewExecutorPool(10)
+	pool := wasm.NewWasmedgeExecutorPool(10)
 	defer pool.Close()
 
 	for b.Loop() {
