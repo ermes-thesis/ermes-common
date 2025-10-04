@@ -3,10 +3,10 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/bytecodealliance/wasmtime-go/v37"
-	"github.com/ermes-thesis/ermes-wasm-pool/wasm-pool"
 	"log"
 	"strings"
+
+	"github.com/bytecodealliance/wasmtime-go/v37"
 )
 
 type WasmtimeAdapter struct {
@@ -64,8 +64,8 @@ func (w WasmtimeAdapter) GetWasmObjectUnsafe(ptr int32, length int32, result any
 	return json.Unmarshal(obj, result)
 }
 
-func (w WasmtimeAdapter) WriteError(errCode wasm.ResponseCode, err error) int32 {
-	functionResponse := wasm.WasmHostFunctionResponse[string]{
+func (w WasmtimeAdapter) WriteError(errCode ResponseCode, err error) int32 {
+	functionResponse := WasmHostFunctionResponse[string]{
 		Code:    errCode,
 		Message: err.Error(),
 	}
@@ -85,18 +85,18 @@ func (w WasmtimeAdapter) WriteError(errCode wasm.ResponseCode, err error) int32 
 }
 
 func (w WasmtimeAdapter) WriteResult(value string) int32 {
-	functionResponse := wasm.WasmHostFunctionResponse[string]{
-		Code:    wasm.Success,
+	functionResponse := WasmHostFunctionResponse[string]{
+		Code:    Success,
 		Message: value,
 	}
 	response, err := functionResponse.MarshalBinary()
 	if err != nil {
-		return w.WriteError(wasm.WasmRuntimeError, err)
+		return w.WriteError(WasmRuntimeError, err)
 	}
 
 	mallocRes, err := w.MallocFunc.Call(w.Store, int32(len(response)))
 	if err != nil {
-		return w.WriteError(wasm.WasmRuntimeError, err)
+		return w.WriteError(WasmRuntimeError, err)
 	}
 
 	resPtr := mallocRes.(int32)
@@ -108,19 +108,19 @@ func (w WasmtimeAdapter) WriteResult(value string) int32 {
 }
 
 func (w WasmtimeAdapter) WriteArrayResult(values []any) int32 {
-	functionResponse := wasm.WasmHostFunctionResponse[[]any]{
-		Code:    wasm.Success,
+	functionResponse := WasmHostFunctionResponse[[]any]{
+		Code:    Success,
 		Message: values,
 	}
 	response, err := functionResponse.MarshalBinary()
 
 	if err != nil {
-		return w.WriteError(wasm.WasmRuntimeError, err)
+		return w.WriteError(WasmRuntimeError, err)
 	}
 
 	mallocRes, err := w.MallocFunc.Call(w.Store, int32(len(response)))
 	if err != nil {
-		return w.WriteError(wasm.WasmRuntimeError, err)
+		return w.WriteError(WasmRuntimeError, err)
 	}
 
 	resPtr := mallocRes.(int32)

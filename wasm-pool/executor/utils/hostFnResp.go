@@ -1,4 +1,4 @@
-package wasm
+package utils
 
 import (
 	"encoding/binary"

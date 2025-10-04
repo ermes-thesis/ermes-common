@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/ermes-thesis/ermes-wasm-pool/wasm-pool"
+	"github.com/ermes-thesis/ermes-common/wasm-pool"
 )
 
 func TestWasmPool(t *testing.T) {

@@ -1,10 +1,11 @@
 package executor
 
 import (
-	"github.com/bytecodealliance/wasmtime-go/v37"
-	"github.com/second-state/WasmEdge-go/wasmedge"
 	"log"
 	"os"
+
+	"github.com/bytecodealliance/wasmtime-go/v37"
+	"github.com/second-state/WasmEdge-go/wasmedge"
 )
 
 type Executor interface {

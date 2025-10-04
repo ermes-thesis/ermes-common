@@ -1,10 +1,11 @@
 package wasm
 
 import (
-	"github.com/bytecodealliance/wasmtime-go/v37"
-	"github.com/ermes-thesis/ermes-wasm-pool/wasm-pool/executor"
 	"log"
 	"sync"
+
+	"github.com/bytecodealliance/wasmtime-go/v37"
+	"github.com/ermes-thesis/ermes-common/wasm-pool/executor"
 
 	"github.com/second-state/WasmEdge-go/wasmedge"
 )

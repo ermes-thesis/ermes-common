@@ -1,4 +1,4 @@
-module github.com/ermes-thesis/ermes-wasm-pool
+module github.com/ermes-thesis/ermes-common/wasm-pool
 
 go 1.24
 
