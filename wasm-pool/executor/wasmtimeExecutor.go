@@ -4,7 +4,10 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+
 	"github.com/bytecodealliance/wasmtime-go/v37"
+	"github.com/ermes-thesis/ermes-common/model"
+
 	"log"
 )
 
@@ -14,7 +17,7 @@ type WasmtimeExecutor struct {
 	inUse  bool
 }
 
-func (exec *WasmtimeExecutor) Invoke(fnName string, entrypoint string, input ...[]byte) WasmResponse {
+func (exec *WasmtimeExecutor) Invoke(fnName string, entrypoint string, input ...[]byte) model.WasmResponse {
 	linker := exec.linker
 	store := exec.store
 
@@ -98,7 +101,7 @@ func (exec *WasmtimeExecutor) Invoke(fnName string, entrypoint string, input ...
 		log.Fatalf("Failed to free: %v", err)
 	}
 
-	wasmResp := WasmResponse{}
+	wasmResp := model.WasmResponse{}
 	err = json.Unmarshal(outData, &wasmResp)
 	if err != nil {
 		log.Fatalf("Failed to unmarshal wasm response: %v", err)

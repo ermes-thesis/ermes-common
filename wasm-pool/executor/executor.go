@@ -5,24 +5,17 @@ import (
 	"os"
 
 	"github.com/bytecodealliance/wasmtime-go/v37"
+	"github.com/ermes-thesis/ermes-common/model"
 	"github.com/second-state/WasmEdge-go/wasmedge"
 )
 
 type Executor interface {
-	Invoke(fnName string, entrypoint string, input ...[]byte) WasmResponse
+	Invoke(fnName string, entrypoint string, input ...[]byte) model.WasmResponse
 	Release()
 	IsInUse() bool
 	SetInUse()
 	Close()
 	RegisterHostFns(fns map[string]any) error
-}
-
-type WasmResponse struct {
-	HttpCode            int                          `json:"http_code"`
-	Response            any                          `json:"response"`
-	CollectionsToCommit map[string]map[string]string `json:"collections_to_commit"`
-	DeletedRecords      map[string][]string          `json:"deleted_records"`
-	DeletedCollections  []string                     `json:"deleted_collections"`
 }
 
 func NewWasmedgeExecutor(conf *wasmedge.Configure) *WasmedgeExecutor {

@@ -4,8 +4,10 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"github.com/second-state/WasmEdge-go/wasmedge"
 	"log"
+
+	"github.com/ermes-thesis/ermes-common/model"
+	"github.com/second-state/WasmEdge-go/wasmedge"
 )
 
 type WasmedgeExecutor struct {
@@ -13,7 +15,7 @@ type WasmedgeExecutor struct {
 	inUse bool
 }
 
-func (exec *WasmedgeExecutor) Invoke(fnName string, entrypoint string, input ...[]byte) WasmResponse {
+func (exec *WasmedgeExecutor) Invoke(fnName string, entrypoint string, input ...[]byte) model.WasmResponse {
 	vm := exec.vm
 	err := vm.LoadWasmFile(fnName + ".wasm")
 	if err != nil {
@@ -85,7 +87,7 @@ func (exec *WasmedgeExecutor) Invoke(fnName string, entrypoint string, input ...
 		log.Fatalf("Failed to free: %v", err)
 	}
 
-	wasmResp := WasmResponse{}
+	wasmResp := model.WasmResponse{}
 	err = json.Unmarshal(outData, &wasmResp)
 	if err != nil {
 		log.Fatalf("Failed to unmarshal wasm response: %v", err)
