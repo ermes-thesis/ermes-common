@@ -1,5 +1,17 @@
-# Ermes WASM pool
+# Ermes Common
 
+This repo contains code that can be reused in other Ermes components.
+
+## Logger
+
+This library exposes a logger that can be used in other Ermes components.
+It is based on [zerolog](https://github.com/rs/zerolog).
+
+## Model
+
+This library exposes some common models that can be used in other Ermes components.
+
+## Ermes WASM Pool
 This library allows to create a pool of WASM runtimes which can execute WASM binaries.
 The WASM binaries can export two type of functions:
 
@@ -13,18 +25,18 @@ The host function performs GET and SET operations on the redis data store and HT
 This repo also contains a test that starts a [Testcontainer](https://testcontainers.com/) with Redis and a WASM pool.
 It then executes an auth function and a function that performs operation on some collections.
 
-## Requirements
+### Requirements
 
 - [Golang](https://go.dev/dl/)
 - [WasmEdge](https://wasmedge.org/docs/start/install)
 
 It is recommended to use the provided Docker Compose or DevContainer, which already satisfies all the requirements.
 
-## How to use
+### How to use
 
 An example of usage can be found in the [Central Repo](https://github.com/ermes-thesis/ermes-central-repo).
 
-## How to test
+### How to test
 
 You can easily run test in a container by executing
 
@@ -37,7 +49,7 @@ or the DevContainer, with a supported IDE (e.g. GoLand, VSCode).
 
 Running locally should be possible, but requires additional configuration.
 
-### How to use GoLand with the Docker Compose target (recommended)
+#### How to use GoLand with the Docker Compose target (recommended)
 
 This configuration allow to execute GoLand on the host machine, and uses the container only to build and run the
 project.
@@ -59,12 +71,12 @@ The first time you need to set up the run target:
 
 NB: When using the `Test WASM Pool` configuration, GoLand will leave some orphan container, just delete them manually.
 
-### How to use the DevContainer
+#### How to use the DevContainer
 
 This configuration runs the IDE inside the DevContainer.
 This requires more resources than the previous one, but it works out-of-the-box, without any additional configuration.
 
-#### How to use with GOLand
+##### How to use with GOLand
 
 1) Start Docker
 2) Open GoLand
@@ -76,7 +88,7 @@ At this point to not use the `Test WASM Pool` configuration, but just run the te
 You can also start the container by navigating to the `devcontainer.json` file
 and use the `Services` tab to manage existing containers.
 
-#### How to use with VSCode
+##### How to use with VSCode
 
 1) Start Docker
 2) Open the project in VSCode
