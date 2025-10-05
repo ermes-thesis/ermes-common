@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 
+	"github.com/ermes-thesis/ermes-common/model"
 	"github.com/second-state/WasmEdge-go/wasmedge"
 )
 
@@ -45,8 +46,8 @@ func (wasmComponent *WasmedgeAdapter) GetWasmObjectUnsafe(ptr int32, length int3
 	return json.Unmarshal(res, result)
 }
 
-func (wasmComponent *WasmedgeAdapter) WriteError(errCode ResponseCode, err error) int32 {
-	functionResponse := WasmHostFunctionResponse[string]{
+func (wasmComponent *WasmedgeAdapter) WriteError(errCode model.ResponseCode, err error) int32 {
+	functionResponse := model.WasmHostFunctionResponse[string]{
 		Code:    errCode,
 		Message: err.Error(),
 	}
@@ -66,48 +67,48 @@ func (wasmComponent *WasmedgeAdapter) WriteError(errCode ResponseCode, err error
 }
 
 func (wasmComponent *WasmedgeAdapter) WriteResult(value string) int32 {
-	functionResponse := WasmHostFunctionResponse[string]{
-		Code:    Success,
+	functionResponse := model.WasmHostFunctionResponse[string]{
+		Code:    model.Success,
 		Message: value,
 	}
 	response, err := functionResponse.MarshalBinary()
 	if err != nil {
-		return wasmComponent.WriteError(WasmRuntimeError, err)
+		return wasmComponent.WriteError(model.WasmRuntimeError, err)
 	}
 
 	mallocRes, err := wasmComponent.Executor.Invoke(wasmComponent.MallocFunc, int32(len(response)))
 	if err != nil {
-		return wasmComponent.WriteError(WasmRuntimeError, err)
+		return wasmComponent.WriteError(model.WasmRuntimeError, err)
 	}
 
 	resPtr := mallocRes[0].(int32)
 	err = wasmComponent.Memory.SetData(response, uint(resPtr), uint(len(response)))
 	if err != nil {
-		return wasmComponent.WriteError(WasmRuntimeError, err)
+		return wasmComponent.WriteError(model.WasmRuntimeError, err)
 	}
 	return resPtr
 }
 
 func (wasmComponent *WasmedgeAdapter) WriteArrayResult(values []any) int32 {
-	functionResponse := WasmHostFunctionResponse[[]any]{
-		Code:    Success,
+	functionResponse := model.WasmHostFunctionResponse[[]any]{
+		Code:    model.Success,
 		Message: values,
 	}
 	response, err := functionResponse.MarshalBinary()
 
 	if err != nil {
-		return wasmComponent.WriteError(WasmRuntimeError, err)
+		return wasmComponent.WriteError(model.WasmRuntimeError, err)
 	}
 
 	mallocRes, err := wasmComponent.Executor.Invoke(wasmComponent.MallocFunc, int32(len(response)))
 	if err != nil {
-		return wasmComponent.WriteError(WasmRuntimeError, err)
+		return wasmComponent.WriteError(model.WasmRuntimeError, err)
 	}
 
 	resPtr := mallocRes[0].(int32)
 	err = wasmComponent.Memory.SetData(response, uint(resPtr), uint(len(response)))
 	if err != nil {
-		return wasmComponent.WriteError(WasmRuntimeError, err)
+		return wasmComponent.WriteError(model.WasmRuntimeError, err)
 	}
 	return resPtr
 }

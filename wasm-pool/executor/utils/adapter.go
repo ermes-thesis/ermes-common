@@ -2,6 +2,7 @@ package utils
 
 import (
 	"github.com/bytecodealliance/wasmtime-go/v37"
+	"github.com/ermes-thesis/ermes-common/model"
 	"github.com/second-state/WasmEdge-go/wasmedge"
 )
 
@@ -10,7 +11,7 @@ type WasmRuntimeAdapter interface {
 	GetWasmStringUnsafe(ptr int32, length int32) (string, error)
 	GetWasmObject(ptr int32, length int32, result any) error
 	GetWasmObjectUnsafe(ptr int32, length int32, result any) error
-	WriteError(errCode ResponseCode, err error) int32
+	WriteError(errCode model.ResponseCode, err error) int32
 	WriteResult(value string) int32
 	WriteArrayResult(values []any) int32
 }
