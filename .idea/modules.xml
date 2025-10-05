@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/ermes-wasm-pool.iml" filepath="$PROJECT_DIR$/.idea/ermes-wasm-pool.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/ermes-common.iml" filepath="$PROJECT_DIR$/.idea/ermes-common.iml" />
     </modules>
   </component>
 </project>

@@ -29,7 +29,7 @@ jobs:
         run: |
           docker compose -f .devcontainer/docker-compose.yml run --build go \
           bash -c 'go install github.com/ctrf-io/go-ctrf-json-reporter/cmd/go-ctrf-json-reporter@latest && \
-          go test -json github.com/ermes-thesis/ermes-wasm-pool/test | go-ctrf-json-reporter -output ctrf-report.json' -v
+          go test -json github.com/ermes-thesis/ermes-common/wasm-pool/test | go-ctrf-json-reporter -output ctrf-report.json' -v
 
       - name: Publish Test Report
         uses: ctrf-io/github-test-reporter@v1
