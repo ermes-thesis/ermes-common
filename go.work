@@ -4,4 +4,6 @@ use (
 	logger
 	model
 	wasm-pool
+	caches
+	utils
 )
