@@ -1,9 +1,8 @@
-package model
+package utils
 
 import (
 	"bytes"
 	"encoding/json"
-	"strings"
 )
 
 // MarshalJSONUnescaped https://stackoverflow.com/a/69502657
@@ -13,8 +12,4 @@ func MarshalJSONUnescaped(i any) ([]byte, error) {
 	encoder.SetEscapeHTML(false)
 	err := encoder.Encode(i)
 	return bytes.TrimRight(buffer.Bytes(), "\n"), err
-}
-
-func escapeString(s string) string {
-	return strings.ReplaceAll(s, `"`, `\"`)
 }

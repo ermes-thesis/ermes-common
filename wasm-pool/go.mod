@@ -10,4 +10,8 @@ require (
 	github.com/second-state/WasmEdge-go v0.14.0
 )
 
+require github.com/ermes-thesis/ermes-common/utils v0.0.0-00010101000000-000000000000 // indirect
+
 replace github.com/ermes-thesis/ermes-common/model => ../model
+
+replace github.com/ermes-thesis/ermes-common/utils => ../utils

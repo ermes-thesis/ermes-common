@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/ermes-thesis/ermes-common/utils"
 )
 
 type QueryTemplate struct {
@@ -380,7 +382,7 @@ func (cw *ConditionWrapper) MarshalJSON() ([]byte, error) {
 
 	switch cond := cw.Condition.(type) {
 	case *AndCondition, *OrCondition, *NotCondition, *EqCondition, *GtCondition:
-		return MarshalJSONUnescaped(cond)
+		return utils.MarshalJSONUnescaped(cond)
 	default:
 		return nil, errors.New("unsupported condition type")
 	}
@@ -395,4 +397,8 @@ func replacePlaceholderOrError(s string, vars map[string]any) (any, error) {
 		return "", fmt.Errorf("unresolved placeholder: <%s>", key)
 	}
 	return s, nil
+}
+
+func escapeString(s string) string {
+	return strings.ReplaceAll(s, `"`, `\"`)
 }
