@@ -24,11 +24,13 @@ func NewRemoteBundleFetcher[T any](baseURL string, ermesSecret string) *RemoteBu
 }
 
 func (f *RemoteBundleFetcher[T]) Fetch(functionName string, functionVersion string) (*T, error) {
-	url := fmt.Sprintf("%s/retrieve-function/%s/%s", f.BaseURL, functionName, functionVersion)
+	url := fmt.Sprintf("%s/%s/%s", f.BaseURL, functionName, functionVersion)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
+
+	req.Header.Set("X-ERMES-SECRET", f.ErmesSecret)
 
 	resp, err := utils.CustomClient.Do(req)
 	if err != nil {
@@ -50,7 +52,7 @@ func (f *RemoteBundleFetcher[T]) Fetch(functionName string, functionVersion stri
 }
 
 func (f *RemoteBundleFetcher[T]) FetchLatest(functionName string, cachedVersion string) (*T, error) {
-	url := fmt.Sprintf("%s/retrieve-function/%s", f.BaseURL, functionName)
+	url := fmt.Sprintf("%s/%s", f.BaseURL, functionName)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
