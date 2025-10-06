@@ -1,4 +1,4 @@
-package utils
+package adapter
 
 import (
 	"github.com/bytecodealliance/wasmtime-go/v37"
