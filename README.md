@@ -11,6 +11,14 @@ It is based on [zerolog](https://github.com/rs/zerolog).
 
 This library exposes some common models that can be used in other Ermes components.
 
+## Utils
+
+This library exposes some common utility functions that can be used in other Ermes components.
+
+## Caches
+
+This library exposes some common cache implementations, based on [golang-lru](github.com/hashicorp/golang-lru/v2).
+
 ## Ermes WASM Pool
 This library allows to create a pool of WASM runtimes which can execute WASM binaries.
 The WASM binaries can export two type of functions:
