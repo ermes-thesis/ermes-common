@@ -67,9 +67,6 @@ func (exec *WasmtimeExecutor) Invoke(fnName string, entrypoint string, input ...
 	end := start + len(inputData)
 	copy(mem.UnsafeData(store)[start:end], inputData)
 
-	fmt.Println("Unsafe data: " + string(mem.UnsafeData(store)[start:end]))
-	fmt.Println("inputData: " + string(inputData))
-
 	// Run the `entry` function, passing the request pointer and the length of the buffers.
 	entryArgs = append([]any{ptr}, entryArgs...)
 	entrypointFn := instance.GetFunc(store, entrypoint)

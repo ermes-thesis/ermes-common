@@ -1,6 +1,7 @@
 package wasm
 
 import (
+	"github.com/tetratelabs/wazero"
 	"log"
 	"sync"
 
@@ -43,6 +44,16 @@ func NewWasmtimeExecutorPool(poolSize int) *WasmExecutorPool {
 		wasiConfig.Close()
 	}
 
+	return pool
+}
+
+func NewWazeroExecutorPool(poolSize int) *WasmExecutorPool {
+	pool := &WasmExecutorPool{}
+
+	config := wazero.NewRuntimeConfig().WithCompilationCache(wazero.NewCompilationCache())
+	for i := 0; i < poolSize; i++ {
+		pool.instances = append(pool.instances, executor.NewWazeroExecutor(config))
+	}
 	return pool
 }
 

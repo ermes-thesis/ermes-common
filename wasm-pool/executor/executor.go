@@ -1,6 +1,9 @@
 package executor
 
 import (
+	"context"
+	"github.com/tetratelabs/wazero"
+	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 	"log"
 	"os"
 
@@ -64,5 +67,29 @@ func NewWasmtimeExecutor(conf *wasmtime.WasiConfig) *WasmtimeExecutor {
 		linker: linker,
 		store:  store,
 		inUse:  false,
+	}
+}
+
+func NewWazeroExecutor(conf wazero.RuntimeConfig) *WazeroExecutor {
+	ctx := context.Background()
+
+	runtime := wazero.NewRuntimeWithConfig(ctx, conf)
+
+	modConf := wazero.NewModuleConfig().
+		WithFSConfig(wazero.NewFSConfig().WithDirMount("./sandbox", ".")).
+		WithStdout(os.Stdout).
+		WithStderr(os.Stderr)
+
+	// optional: create sandbox dir
+	if err := os.MkdirAll("./sandbox", os.ModePerm); err != nil {
+		log.Fatalf("Failed to create sandbox directory: %v", err)
+	}
+
+	wasi_snapshot_preview1.MustInstantiate(ctx, runtime)
+
+	return &WazeroExecutor{
+		runtime:   runtime,
+		modConfig: modConf,
+		inUse:     false,
 	}
 }
