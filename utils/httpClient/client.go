@@ -1,4 +1,4 @@
-package utils
+package httpClient
 
 import "net/http"
 

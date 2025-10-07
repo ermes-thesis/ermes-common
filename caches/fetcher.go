@@ -6,7 +6,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/ermes-thesis/ermes-common/utils"
+	"github.com/ermes-thesis/ermes-common/utils/httpClient"
 )
 
 type Fetcher[T any] interface {
@@ -32,7 +32,7 @@ func (f *RemoteBundleFetcher[T]) Fetch(functionName string, functionVersion stri
 
 	req.Header.Set("X-ERMES-SECRET", f.ErmesSecret)
 
-	resp, err := utils.CustomClient.Do(req)
+	resp, err := httpClient.CustomClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (f *RemoteBundleFetcher[T]) FetchLatest(functionName string, cachedVersion 
 
 	req.Header.Set("X-ERMES-SECRET", f.ErmesSecret)
 
-	resp, err := utils.CustomClient.Do(req)
+	resp, err := httpClient.CustomClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
