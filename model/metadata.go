@@ -79,7 +79,3 @@ func FromMap(metadataMap map[string]string) (*Metadata, error) {
 	}
 	return metadata, nil
 }
-
-func (m Metadata) IsPropagable() bool {
-	return true
-}
