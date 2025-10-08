@@ -31,12 +31,16 @@ func (u *GroupsCache) DeleteGroup(groupName string) {
 	delete(u.UsersInGroups, groupName)
 }
 
+type CollectionUpdate struct {
+	DirtyRecords     map[string]string
+	CollectionGroups map[string]bool
+	DeletedRecords   []string
+	Deleted          bool
+}
+
 type FunctionCachedUpdates struct {
-	DirtyCollections   map[string]map[string]string
-	CollectionsGroups  map[string]map[string]bool
-	DeletedRecords     map[string][]string
-	DeletedCollections []string
-	Groups             GroupsCache
+	CollectionUpdates map[string]CollectionUpdate
+	Groups            GroupsCache
 }
 
 type WasmResponse struct {
