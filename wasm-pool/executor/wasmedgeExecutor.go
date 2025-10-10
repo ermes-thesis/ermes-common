@@ -3,11 +3,9 @@ package executor
 import (
 	"encoding/binary"
 	"encoding/json"
-	"fmt"
-	"log"
-
 	"github.com/ermes-thesis/ermes-common/model"
 	"github.com/second-state/WasmEdge-go/wasmedge"
+	"log"
 )
 
 type WasmedgeExecutor struct {
@@ -17,6 +15,8 @@ type WasmedgeExecutor struct {
 
 func (exec *WasmedgeExecutor) Invoke(fnName string, entrypoint string, input ...[]byte) model.WasmResponse {
 	vm := exec.vm
+
+	//fmt.Printf("[%s] Loading module\n", time.Now())
 	err := vm.LoadWasmFile(fnName + ".wasm")
 	if err != nil {
 		log.Fatalf("Failed to load wasm file: %v", err)
@@ -27,11 +27,13 @@ func (exec *WasmedgeExecutor) Invoke(fnName string, entrypoint string, input ...
 		log.Fatalf("Failed to validate wasm file: %v", err)
 	}
 
+	//fmt.Printf("[%s] Instantiating module\n", time.Now())
 	err = vm.Instantiate()
 	if err != nil {
 		log.Fatalf("Failed to instantiate wasm file: %v", err)
 	}
 
+	//fmt.Printf("[%s] Calling func _initialize\n", time.Now())
 	_, err = vm.Execute("_initialize")
 	if err != nil {
 		log.Fatalf("Failed to execute wasm file: %v", err)
@@ -44,6 +46,7 @@ func (exec *WasmedgeExecutor) Invoke(fnName string, entrypoint string, input ...
 		inputData = append(inputData, arg...)
 	}
 
+	//fmt.Printf("[%s] Calling malloc\n", time.Now())
 	// Allocate memory for the request and the context.
 	allocateResult, err := vm.Execute("malloc", int32(len(inputData)))
 	if err != nil {
@@ -51,6 +54,7 @@ func (exec *WasmedgeExecutor) Invoke(fnName string, entrypoint string, input ...
 	}
 	ptr := allocateResult[0].(int32)
 
+	//fmt.Printf("[%s] Writing memory\n", time.Now())
 	// Write the input into the memory.
 	mod := vm.GetActiveModule()
 	mem := mod.FindMemory("memory")
@@ -59,6 +63,7 @@ func (exec *WasmedgeExecutor) Invoke(fnName string, entrypoint string, input ...
 		log.Fatalf("Failed to set memory: %v", err)
 	}
 
+	//fmt.Printf("[%s] Running func\n", time.Now())
 	// Run the `entry` function, passing the request pointer and the length of the buffers.
 	entryArgs = append([]any{ptr}, entryArgs...)
 	entryResult, err := vm.Execute(entrypoint, entryArgs...)
@@ -67,6 +72,7 @@ func (exec *WasmedgeExecutor) Invoke(fnName string, entrypoint string, input ...
 	}
 	outputPointer := entryResult[0].(int32)
 
+	//fmt.Printf("[%s] Getting output\n", time.Now())
 	outData, err := mem.GetData(uint(outputPointer), 8)
 	if err != nil {
 		log.Fatalf("Failed to get memory: %v", err)
@@ -79,8 +85,9 @@ func (exec *WasmedgeExecutor) Invoke(fnName string, entrypoint string, input ...
 	if err != nil {
 		log.Fatalf("Failed to get memory: %v", err)
 	}
-	fmt.Println(string(outData))
+	//fmt.Println(string(outData))
 
+	//fmt.Printf("[%s] Freeing memory\n", time.Now())
 	// Deallocate the buffers.
 	_, err = vm.Execute("free", ptr)
 	if err != nil {
@@ -92,6 +99,8 @@ func (exec *WasmedgeExecutor) Invoke(fnName string, entrypoint string, input ...
 	if err != nil {
 		log.Fatalf("Failed to unmarshal wasm response: %v", err)
 	}
+
+	//fmt.Printf("[%s] ------ END ------\n", time.Now())
 
 	return wasmResp
 }
