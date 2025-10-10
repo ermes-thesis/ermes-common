@@ -15,6 +15,7 @@ import (
 
 type Logger struct {
 	Logger  zerolog.Logger
+	outputs []diode.Writer
 	logFile *os.File
 }
 
@@ -36,7 +37,7 @@ const levelSectionWidth = 7
 
 func NewLogger(config Config) (*Logger, error) {
 	var (
-		outputs []io.Writer
+		outputs []diode.Writer
 		logFile *os.File
 		err     error
 	)
@@ -64,7 +65,11 @@ func NewLogger(config Config) (*Logger, error) {
 	}
 
 	// Notify zerolog to use multiple writers
-	writer := zerolog.MultiLevelWriter(outputs...)
+	var outs []io.Writer
+	for _, o := range outputs {
+		outs = append(outs, o)
+	}
+	writer := zerolog.MultiLevelWriter(outs...)
 
 	// Initializing the base structure of the logger with a timestamp
 	base := zerolog.New(writer).With().Timestamp()
@@ -86,7 +91,7 @@ func NewLogger(config Config) (*Logger, error) {
 // buildConsoleWriter wraps the parameter writer into a zerolog.ConsoleWriter to
 // create some pretty logging. This is the default writer that is used to write to
 // os.Stdout
-func buildConsoleWriter(out io.Writer, noColor bool) io.Writer {
+func buildConsoleWriter(out io.Writer, noColor bool) diode.Writer {
 	return diode.NewWriter(zerolog.ConsoleWriter{
 		Out:        out,
 		NoColor:    noColor,
@@ -110,7 +115,7 @@ func buildConsoleWriter(out io.Writer, noColor bool) io.Writer {
 //
 // If the "text" format is chosen, the parameter writer is wrapper in a zerolog.ConsoleWriter
 // that will take care of formatting the logging messages in a pretty and easily understandable way
-func buildWriter(format string, out io.Writer, noColor bool) io.Writer {
+func buildWriter(format string, out io.Writer, noColor bool) diode.Writer {
 	if format == "json" {
 		return diode.NewWriter(out, 1000, 10*time.Millisecond, func(missed int) {
 			fmt.Printf("Logger dropped %d messages", missed)
@@ -121,7 +126,18 @@ func buildWriter(format string, out io.Writer, noColor bool) io.Writer {
 }
 
 func (l *Logger) Close() error {
+	for _, o := range l.outputs {
+		err := o.Close()
+		if err != nil {
+			return err
+		}
+	}
+
 	if l.logFile != nil {
+		err := l.logFile.Sync()
+		if err != nil {
+			return err
+		}
 		return l.logFile.Close()
 	}
 	return nil
