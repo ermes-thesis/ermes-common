@@ -14,7 +14,7 @@ import (
 )
 
 type Logger struct {
-	Logger  zerolog.Logger
+	logger  zerolog.Logger
 	outputs []diode.Writer
 	logFile *os.File
 }
@@ -82,7 +82,7 @@ func NewLogger(config Config) (*Logger, error) {
 	// Create the logger
 	logger := base.Logger().Level(config.Level)
 	return &Logger{
-		Logger:  logger,
+		logger:  logger,
 		logFile: logFile,
 	}, nil
 
@@ -144,74 +144,74 @@ func (l *Logger) Close() error {
 }
 
 func (l *Logger) Info(msg string, attrs ...any) {
-	l.Logger.Info().Fields(attrs).Msg(msg)
+	l.logger.Info().Fields(attrs).Msg(msg)
 }
 
 func (l *Logger) Infof(format string, args ...interface{}) {
-	l.Logger.Info().Msg(fmt.Sprintf(format, args...))
+	l.logger.Info().Msg(fmt.Sprintf(format, args...))
 }
 
 func (l *Logger) InfofWith(format string, args []any, attrs ...any) {
-	l.Logger.Info().Fields(attrs).Msgf(format, args...)
+	l.logger.Info().Fields(attrs).Msgf(format, args...)
 }
 
 func (l *Logger) Error(msg string, attrs ...any) {
-	l.Logger.Error().Fields(attrs).Msg(msg)
+	l.logger.Error().Fields(attrs).Msg(msg)
 }
 
 func (l *Logger) Errorf(format string, args ...interface{}) {
-	l.Logger.Error().Msgf(format, args...)
+	l.logger.Error().Msgf(format, args...)
 }
 
 func (l *Logger) ErrorfErr(format string, args ...interface{}) error {
 	errStr := fmt.Sprintf(format, args...)
-	l.Logger.Error().Msg(errStr)
+	l.logger.Error().Msg(errStr)
 
 	return errors.New(errStr)
 }
 
 func (l *Logger) Debug(msg string, attrs ...any) {
-	l.Logger.Debug().Fields(attrs).Msg(msg)
+	l.logger.Debug().Fields(attrs).Msg(msg)
 }
 
 func (l *Logger) Debugf(format string, args ...interface{}) {
-	l.Logger.Debug().Msgf(format, args...)
+	l.logger.Debug().Msgf(format, args...)
 }
 
 func (l *Logger) Warnf(format string, args ...interface{}) {
-	l.Logger.Warn().Msgf(format, args...)
+	l.logger.Warn().Msgf(format, args...)
 }
 
 func (l *Logger) DebugfWith(format string, args []any, attrs ...any) {
-	l.Logger.Debug().Fields(attrs).Msgf(format, args...)
+	l.logger.Debug().Fields(attrs).Msgf(format, args...)
 }
 
 func (l *Logger) Warn(msg string, attrs ...any) {
-	l.Logger.Warn().Fields(attrs).Msg(msg)
+	l.logger.Warn().Fields(attrs).Msg(msg)
 }
 
 func (l *Logger) WarnfWith(format string, args []any, attrs ...any) {
-	l.Logger.Warn().Fields(attrs).Msgf(format, args...)
+	l.logger.Warn().Fields(attrs).Msgf(format, args...)
 }
 
 func (l *Logger) ErrorfWith(format string, args []any, attrs ...any) {
-	l.Logger.Error().Fields(attrs).Msgf(format, args...)
+	l.logger.Error().Fields(attrs).Msgf(format, args...)
 }
 
 func (l *Logger) ErrorfErrWith(format string, args []any, attrs ...any) error {
 	errStr := fmt.Sprintf(format, args...)
 
-	l.Logger.Error().Fields(attrs).Msg(errStr)
+	l.logger.Error().Fields(attrs).Msg(errStr)
 	return errors.New(errStr)
 }
 
 func (l *Logger) Enabled(level zerolog.Level) bool {
-	return level >= l.Logger.GetLevel()
+	return level >= l.logger.GetLevel()
 }
 
 func (l *Logger) With(args ...any) *Logger {
 	return &Logger{
-		Logger:  l.Logger.With().Fields(args).Logger(),
+		logger:  l.logger.With().Fields(args).Logger(),
 		logFile: l.logFile,
 	}
 }
