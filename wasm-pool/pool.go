@@ -47,10 +47,15 @@ func NewWasmtimeExecutorPool(poolSize int) *WasmExecutorPool {
 	return pool
 }
 
-func NewWazeroExecutorPool(poolSize int) *WasmExecutorPool {
+func NewWazeroExecutorPool(poolSize int, interpreter bool) *WasmExecutorPool {
 	pool := &WasmExecutorPool{}
 
-	config := wazero.NewRuntimeConfig().WithCompilationCache(wazero.NewCompilationCache())
+	var config wazero.RuntimeConfig
+	if interpreter {
+		config = wazero.NewRuntimeConfigInterpreter()
+	} else {
+		config = wazero.NewRuntimeConfig().WithCompilationCache(wazero.NewCompilationCache())
+	}
 	for i := 0; i < poolSize; i++ {
 		pool.instances = append(pool.instances, executor.NewWazeroExecutor(config))
 	}
@@ -72,9 +77,9 @@ func (p *WasmExecutorPool) Acquire() executor.Executor {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	for index, exec := range p.instances {
+	for _, exec := range p.instances {
 		if !exec.IsInUse() {
-			log.Default().Println("Acquired executor N. ", index)
+			//log.Default().Println("Acquired executor N. ", index)
 			exec.SetInUse()
 			return exec
 		}
