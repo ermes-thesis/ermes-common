@@ -3,9 +3,10 @@ package executor
 import (
 	"encoding/binary"
 	"encoding/json"
+	"log"
+
 	"github.com/ermes-thesis/ermes-common/model"
 	"github.com/second-state/WasmEdge-go/wasmedge"
-	"log"
 )
 
 type WasmedgeExecutor struct {
@@ -13,11 +14,11 @@ type WasmedgeExecutor struct {
 	inUse bool
 }
 
-func (exec *WasmedgeExecutor) Invoke(fnName string, entrypoint string, input ...[]byte) model.WasmResponse {
+func (exec *WasmedgeExecutor) Invoke(fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse {
 	vm := exec.vm
 
 	//fmt.Printf("[%s] Loading module\n", time.Now())
-	err := vm.LoadWasmFile(fnName + ".wasm")
+	err := vm.LoadWasmBuffer(fnBuffer)
 	if err != nil {
 		log.Fatalf("Failed to load wasm file: %v", err)
 	}

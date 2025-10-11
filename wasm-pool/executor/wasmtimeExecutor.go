@@ -3,6 +3,7 @@ package executor
 import (
 	"encoding/binary"
 	"encoding/json"
+
 	"github.com/bytecodealliance/wasmtime-go/v37"
 	"github.com/ermes-thesis/ermes-common/model"
 
@@ -15,12 +16,12 @@ type WasmtimeExecutor struct {
 	inUse  bool
 }
 
-func (exec *WasmtimeExecutor) Invoke(fnName string, entrypoint string, input ...[]byte) model.WasmResponse {
+func (exec *WasmtimeExecutor) Invoke(fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse {
 	linker := exec.linker
 	store := exec.store
 
 	//fmt.Printf("[%s] Loading module\n", time.Now())
-	module, err := wasmtime.NewModuleFromFile(linker.Engine, fnName+".wasm")
+	module, err := wasmtime.NewModule(linker.Engine, fnBuffer)
 	if err != nil {
 		log.Fatalf("Failed to load wasm file: %v", err)
 	}

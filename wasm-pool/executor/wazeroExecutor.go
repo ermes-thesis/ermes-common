@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"log"
+
 	"github.com/ermes-thesis/ermes-common/model"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
-	"log"
-	"os"
 )
 
 type WazeroExecutor struct {
@@ -17,20 +17,14 @@ type WazeroExecutor struct {
 	inUse     bool
 }
 
-func (exec *WazeroExecutor) Invoke(fnName string, entrypoint string, input ...[]byte) model.WasmResponse {
+func (exec *WazeroExecutor) Invoke(fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse {
 	runtime := exec.runtime
 	ctx := context.Background()
-
-	//fmt.Printf("[%s] Loading module\n", time.Now())
-	wasmBinary, err := os.ReadFile(fnName + ".wasm")
-	if err != nil {
-		log.Fatalf("Failed to read wasm file: %v", err)
-	}
 
 	//fmt.Printf("[%s] Instantiating module\n", time.Now())
 	// Need to call CompileModule and InstantiateModule separately and not with the convenience method InstantiateWithConfig
 	// because the latter removes from the in-memory cache the compiled module, meaning that even if the module is
-	compiledMod, err := runtime.CompileModule(ctx, wasmBinary)
+	compiledMod, err := runtime.CompileModule(ctx, fnBuffer)
 	instance, err := runtime.InstantiateModule(ctx, compiledMod, exec.modConfig)
 	if err != nil {
 		log.Fatalf("Failed to create instance: %v", err)

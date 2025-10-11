@@ -2,10 +2,11 @@ package executor
 
 import (
 	"context"
-	"github.com/tetratelabs/wazero"
-	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 	"log"
 	"os"
+
+	"github.com/tetratelabs/wazero"
+	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 
 	"github.com/bytecodealliance/wasmtime-go/v37"
 	"github.com/ermes-thesis/ermes-common/model"
@@ -13,7 +14,7 @@ import (
 )
 
 type Executor interface {
-	Invoke(fnName string, entrypoint string, input ...[]byte) model.WasmResponse
+	Invoke(fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse
 	Release()
 	IsInUse() bool
 	SetInUse()
