@@ -1,12 +1,13 @@
-package utils
+package adapter
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/tetratelabs/wazero/api"
 	"log"
 	"strings"
+
+	"github.com/tetratelabs/wazero/api"
 
 	"github.com/ermes-thesis/ermes-common/model"
 )
