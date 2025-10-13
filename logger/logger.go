@@ -11,12 +11,15 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/diode"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 type Logger struct {
-	logger  zerolog.Logger
-	outputs []diode.Writer
-	logFile *os.File
+	logger       zerolog.Logger
+	outputs      []diode.Writer
+	config       Config
+	logFile      io.WriteCloser
+	childLoggers []*Logger
 }
 
 type Config struct {
@@ -26,6 +29,7 @@ type Config struct {
 	StdoutEnabled bool
 	AddSource     bool
 	Colored       bool
+	Rolling       bool
 }
 
 type LogFile struct {
@@ -35,10 +39,20 @@ type LogFile struct {
 
 const levelSectionWidth = 7
 
+func makeRotatingFileWriter(logPath string) io.WriteCloser {
+	return &lumberjack.Logger{
+		Filename:   logPath,
+		MaxSize:    10,
+		MaxBackups: 5,
+		MaxAge:     7,
+		Compress:   true,
+	}
+}
+
 func NewLogger(config Config) (*Logger, error) {
 	var (
 		outputs []diode.Writer
-		logFile *os.File
+		logFile io.WriteCloser
 		err     error
 	)
 
@@ -49,9 +63,15 @@ func NewLogger(config Config) (*Logger, error) {
 		if err != nil {
 			return nil, err
 		}
-		logFile, err = os.OpenFile(logPath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
-		if err != nil {
-			return nil, err
+
+		if config.Rolling {
+			// If rolling is enabled, we use lumberjack to handle log rotation
+			logFile = makeRotatingFileWriter(logPath)
+		} else {
+			logFile, err = os.OpenFile(logPath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		// If everything went well, add the file to the outputs to which the logger must write
@@ -83,9 +103,10 @@ func NewLogger(config Config) (*Logger, error) {
 	logger := base.Logger().Level(config.Level)
 	return &Logger{
 		logger:  logger,
+		outputs: outputs,
+		config:  config,
 		logFile: logFile,
 	}, nil
-
 }
 
 // buildConsoleWriter wraps the parameter writer into a zerolog.ConsoleWriter to
@@ -93,10 +114,21 @@ func NewLogger(config Config) (*Logger, error) {
 // os.Stdout
 func buildConsoleWriter(out io.Writer, noColor bool) diode.Writer {
 	return diode.NewWriter(zerolog.ConsoleWriter{
-		Out:        out,
-		NoColor:    noColor,
-		TimeFormat: "2006-01-02 15:04:05",
-		PartsOrder: []string{zerolog.LevelFieldName, zerolog.TimestampFieldName, zerolog.CallerFieldName, zerolog.MessageFieldName},
+		Out:           out,
+		NoColor:       noColor,
+		TimeFormat:    "2006-01-02 15:04:05",
+		FieldsExclude: []string{"component"},
+		PartsOrder:    []string{zerolog.LevelFieldName, zerolog.TimestampFieldName, zerolog.CallerFieldName, "component", zerolog.MessageFieldName},
+		FormatPartValueByName: func(i interface{}, s string) string {
+			if s == "component" {
+				value, ok := i.(string)
+				if !ok {
+					return ""
+				}
+				return strings.ToUpper(fmt.Sprintf("[%s]", value))
+			}
+			return i.(string)
+		},
 		FormatLevel: func(level any) string {
 			levelSection := fmt.Sprintf("[%s]", level)
 			pad := levelSectionWidth - len(levelSection)
@@ -126,6 +158,13 @@ func buildWriter(format string, out io.Writer, noColor bool) diode.Writer {
 }
 
 func (l *Logger) Close() error {
+	for _, child := range l.childLoggers {
+		err := child.Close()
+		if err != nil {
+			return err
+		}
+	}
+
 	for _, o := range l.outputs {
 		err := o.Close()
 		if err != nil {
@@ -134,10 +173,6 @@ func (l *Logger) Close() error {
 	}
 
 	if l.logFile != nil {
-		err := l.logFile.Sync()
-		if err != nil {
-			return err
-		}
 		return l.logFile.Close()
 	}
 	return nil
@@ -211,7 +246,65 @@ func (l *Logger) Enabled(level zerolog.Level) bool {
 
 func (l *Logger) With(args ...any) *Logger {
 	return &Logger{
-		logger:  l.logger.With().Fields(args).Logger(),
-		logFile: l.logFile,
+		logger: l.logger.With().Fields(args).Logger(),
+		config: l.config,
 	}
+}
+
+func (l *Logger) Component(name string) *Logger {
+	return &Logger{
+		logger: l.logger.With().Str("component", name).Logger(),
+		config: l.config,
+	}
+}
+
+func (l *Logger) ComponentWithFile(name string) (*Logger, error) {
+	if l.config.Output == nil {
+		return nil, fmt.Errorf("cannot create separated log file for component %s: no base log file configured", name)
+	}
+
+	newLogPath := filepath.Join(l.config.Output.LogDir, fmt.Sprintf("%s.log", name))
+
+	var logFile io.WriteCloser
+	var err error
+	if l.config.Rolling {
+		// If rolling is enabled, we use lumberjack to handle log rotation
+		logFile = makeRotatingFileWriter(newLogPath)
+	} else {
+		logFile, err = os.OpenFile(newLogPath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
+		if err != nil {
+			return nil, err
+		}
+	}
+	newWriter := buildWriter(l.config.Format, logFile, true)
+
+	// Notify zerolog to use multiple writers
+	var outs []io.Writer
+	for _, o := range l.outputs {
+		outs = append(outs, o)
+	}
+	outs = append(outs, newWriter)
+	writer := zerolog.MultiLevelWriter(outs...)
+
+	// Initializing the base structure of the logger with a timestamp
+	base := zerolog.New(writer).With().Timestamp().Str("component", name)
+
+	// If requested add the Caller file:line
+	if l.config.AddSource {
+		base = base.CallerWithSkipFrameCount(3)
+	}
+
+	// Create the logger
+	logger := base.Logger().Level(l.config.Level)
+
+	childLogger := &Logger{
+		logger:  logger,
+		outputs: []diode.Writer{newWriter},
+		config:  l.config,
+		logFile: logFile,
+	}
+
+	l.childLoggers = append(l.childLoggers, childLogger)
+
+	return childLogger, nil
 }
