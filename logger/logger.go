@@ -30,6 +30,7 @@ type Config struct {
 	AddSource     bool
 	Colored       bool
 	Rolling       bool
+	Muted         bool
 }
 
 type LogFile struct {
@@ -179,69 +180,104 @@ func (l *Logger) Close() error {
 }
 
 func (l *Logger) Info(msg string, attrs ...any) {
-	l.logger.Info().Fields(attrs).Msg(msg)
+	if !l.config.Muted {
+		l.logger.Info().Fields(attrs).Msg(msg)
+	}
 }
 
 func (l *Logger) Infof(format string, args ...interface{}) {
-	l.logger.Info().Msg(fmt.Sprintf(format, args...))
+	if !l.config.Muted {
+		l.logger.Info().Msg(fmt.Sprintf(format, args...))
+	}
 }
 
 func (l *Logger) InfofWith(format string, args []any, attrs ...any) {
-	l.logger.Info().Fields(attrs).Msgf(format, args...)
+	if !l.config.Muted {
+		l.logger.Info().Fields(attrs).Msgf(format, args...)
+	}
 }
 
 func (l *Logger) Error(msg string, attrs ...any) {
-	l.logger.Error().Fields(attrs).Msg(msg)
+	if !l.config.Muted {
+		l.logger.Error().Fields(attrs).Msg(msg)
+	}
 }
 
 func (l *Logger) Errorf(format string, args ...interface{}) {
-	l.logger.Error().Msgf(format, args...)
+	if !l.config.Muted {
+		l.logger.Error().Msgf(format, args...)
+	}
 }
 
 func (l *Logger) ErrorfErr(format string, args ...interface{}) error {
 	errStr := fmt.Sprintf(format, args...)
-	l.logger.Error().Msg(errStr)
-
+	if !l.config.Muted {
+		l.logger.Error().Msg(errStr)
+	}
 	return errors.New(errStr)
 }
 
 func (l *Logger) Debug(msg string, attrs ...any) {
-	l.logger.Debug().Fields(attrs).Msg(msg)
+	if !l.config.Muted {
+		l.logger.Debug().Fields(attrs).Msg(msg)
+	}
 }
 
 func (l *Logger) Debugf(format string, args ...interface{}) {
-	l.logger.Debug().Msgf(format, args...)
+	if !l.config.Muted {
+		l.logger.Debug().Msgf(format, args...)
+	}
 }
 
 func (l *Logger) Warnf(format string, args ...interface{}) {
-	l.logger.Warn().Msgf(format, args...)
+	if !l.config.Muted {
+		l.logger.Warn().Msgf(format, args...)
+	}
 }
 
 func (l *Logger) DebugfWith(format string, args []any, attrs ...any) {
-	l.logger.Debug().Fields(attrs).Msgf(format, args...)
+	if !l.config.Muted {
+		l.logger.Debug().Fields(attrs).Msgf(format, args...)
+	}
 }
 
 func (l *Logger) Warn(msg string, attrs ...any) {
-	l.logger.Warn().Fields(attrs).Msg(msg)
+	if !l.config.Muted {
+		l.logger.Warn().Fields(attrs).Msg(msg)
+	}
 }
 
 func (l *Logger) WarnfWith(format string, args []any, attrs ...any) {
-	l.logger.Warn().Fields(attrs).Msgf(format, args...)
+	if !l.config.Muted {
+		l.logger.Warn().Fields(attrs).Msgf(format, args...)
+	}
 }
 
 func (l *Logger) ErrorfWith(format string, args []any, attrs ...any) {
-	l.logger.Error().Fields(attrs).Msgf(format, args...)
+	if !l.config.Muted {
+		l.logger.Error().Fields(attrs).Msgf(format, args...)
+	}
 }
 
 func (l *Logger) ErrorfErrWith(format string, args []any, attrs ...any) error {
 	errStr := fmt.Sprintf(format, args...)
 
-	l.logger.Error().Fields(attrs).Msg(errStr)
+	if !l.config.Muted {
+		l.logger.Error().Fields(attrs).Msg(errStr)
+	}
 	return errors.New(errStr)
 }
 
 func (l *Logger) Enabled(level zerolog.Level) bool {
 	return level >= l.logger.GetLevel()
+}
+
+func (l *Logger) Mute() {
+	l.config.Muted = true
+}
+
+func (l *Logger) Unmute() {
+	l.config.Muted = false
 }
 
 func (l *Logger) With(args ...any) *Logger {
