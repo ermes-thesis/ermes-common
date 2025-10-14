@@ -43,7 +43,7 @@ type LogFile struct {
 	LogFileName string
 }
 
-const levelSectionWidth = 7
+const levelSectionWidth = 16
 
 func makeRotatingFileWriter(logPath string) io.WriteCloser {
 	return &lumberjack.Logger{
@@ -121,6 +121,15 @@ func NewLogger(config Config) (*Logger, error) {
 	}, nil
 }
 
+// colorize returns the string s wrapped in ANSI code c, unless disabled is true or c is 0.
+func colorize(s string, c int, disabled bool) string {
+	e := os.Getenv("NO_COLOR")
+	if disabled || e != "" || c == 0 {
+		return fmt.Sprintf("%s", s)
+	}
+	return fmt.Sprintf("\x1b[%dm%v\x1b[0m", c, s)
+}
+
 // buildConsoleWriter wraps the parameter writer into a zerolog.ConsoleWriter to
 // create some pretty logging. This is the default writer that is used to write to
 // os.Stdout
@@ -130,8 +139,8 @@ func buildConsoleWriter(out io.Writer, noColor bool) diode.Writer {
 		NoColor:       noColor,
 		TimeFormat:    "2006-01-02 15:04:05",
 		FieldsExclude: []string{"component"},
-		PartsOrder:    []string{zerolog.LevelFieldName, zerolog.TimestampFieldName, zerolog.CallerFieldName, "component", zerolog.MessageFieldName},
-		FormatPartValueByName: func(i interface{}, s string) string {
+		PartsOrder:    []string{zerolog.LevelFieldName, zerolog.TimestampFieldName, "component", zerolog.CallerFieldName, zerolog.MessageFieldName},
+		FormatPartValueByName: func(i any, s string) string {
 			if s == "component" {
 				value, ok := i.(string)
 				if !ok {
@@ -141,11 +150,13 @@ func buildConsoleWriter(out io.Writer, noColor bool) diode.Writer {
 			}
 			return i.(string)
 		},
-		FormatLevel: func(level any) string {
-			levelSection := fmt.Sprintf("[%s]", level)
+		FormatLevel: func(levelStr any) string {
+			uppercaseLevel := strings.ToUpper(levelStr.(string))
+			level, _ := zerolog.ParseLevel(uppercaseLevel)
+			levelSection := colorize(fmt.Sprintf("[%s]", uppercaseLevel), zerolog.LevelColors[level], noColor)
 			pad := levelSectionWidth - len(levelSection)
 			levelSection = levelSection + strings.Repeat(" ", pad)
-			return strings.ToUpper(levelSection)
+			return levelSection
 		},
 	}, 1000, 10*time.Millisecond, func(missed int) {
 		fmt.Printf("Logger dropped %d messages", missed)
