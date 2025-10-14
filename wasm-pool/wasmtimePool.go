@@ -49,10 +49,6 @@ func (p *WasmtimeExecutorPool) RegisterHostFns(fns map[string]any) error {
 	return nil
 }
 
-func (p *WasmtimeExecutorPool) Acquire() executor.Executor {
-	return p.WasmExecutorPool.Acquire()
-}
-
 func (p *WasmtimeExecutorPool) Close() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
