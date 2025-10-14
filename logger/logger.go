@@ -14,9 +14,14 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
+type outputEntry struct {
+	writer   diode.Writer
+	isStdout bool
+}
+
 type Logger struct {
 	logger       zerolog.Logger
-	outputs      []diode.Writer
+	outputs      []outputEntry
 	config       Config
 	logFile      io.WriteCloser
 	childLoggers []*Logger
@@ -52,7 +57,7 @@ func makeRotatingFileWriter(logPath string) io.WriteCloser {
 
 func NewLogger(config Config) (*Logger, error) {
 	var (
-		outputs []diode.Writer
+		outputs []outputEntry
 		logFile io.WriteCloser
 		err     error
 	)
@@ -76,19 +81,25 @@ func NewLogger(config Config) (*Logger, error) {
 		}
 
 		// If everything went well, add the file to the outputs to which the logger must write
-		outputs = append(outputs, buildWriter(config.Format, logFile, true))
+		outputs = append(outputs, outputEntry{
+			writer:   buildWriter(config.Format, logFile, true),
+			isStdout: false,
+		})
 	}
 
 	// If an output file has not been configured, fallback to stdout
 	// If an output file has been configured, add stdout only if explicitly requested
 	if len(outputs) == 0 || config.StdoutEnabled {
-		outputs = append(outputs, buildConsoleWriter(os.Stdout, !config.Colored))
+		outputs = append(outputs, outputEntry{
+			writer:   buildConsoleWriter(os.Stdout, !config.Colored),
+			isStdout: true,
+		})
 	}
 
 	// Notify zerolog to use multiple writers
 	var outs []io.Writer
 	for _, o := range outputs {
-		outs = append(outs, o)
+		outs = append(outs, o.writer)
 	}
 	writer := zerolog.MultiLevelWriter(outs...)
 
@@ -167,7 +178,10 @@ func (l *Logger) Close() error {
 	}
 
 	for _, o := range l.outputs {
-		err := o.Close()
+		if o.isStdout {
+			continue
+		}
+		err := o.writer.Close()
 		if err != nil {
 			return err
 		}
@@ -317,7 +331,7 @@ func (l *Logger) ComponentWithFile(name string) (*Logger, error) {
 	// Notify zerolog to use multiple writers
 	var outs []io.Writer
 	for _, o := range l.outputs {
-		outs = append(outs, o)
+		outs = append(outs, o.writer)
 	}
 	outs = append(outs, newWriter)
 	writer := zerolog.MultiLevelWriter(outs...)
@@ -334,8 +348,13 @@ func (l *Logger) ComponentWithFile(name string) (*Logger, error) {
 	logger := base.Logger().Level(l.config.Level)
 
 	childLogger := &Logger{
-		logger:  logger,
-		outputs: []diode.Writer{newWriter},
+		logger: logger,
+		outputs: []outputEntry{
+			{
+				writer:   newWriter,
+				isStdout: false,
+			},
+		},
 		config:  l.config,
 		logFile: logFile,
 	}
