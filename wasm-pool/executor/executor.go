@@ -56,7 +56,8 @@ func NewWazeroExecutor(conf wazero.RuntimeConfig) *WazeroExecutor {
 	modConf := wazero.NewModuleConfig().
 		WithFSConfig(wazero.NewFSConfig().WithDirMount("./sandbox", ".")).
 		WithStdout(os.Stdout).
-		WithStderr(os.Stderr)
+		WithStderr(os.Stderr).
+		WithSysNanosleep()
 
 	// optional: create sandbox dir
 	if err := os.MkdirAll("./sandbox", os.ModePerm); err != nil {
