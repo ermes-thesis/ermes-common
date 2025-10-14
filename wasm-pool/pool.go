@@ -1,11 +1,11 @@
 package wasm
 
 import (
-	"github.com/tetratelabs/wazero"
 	"log"
 	"sync"
 
-	"github.com/bytecodealliance/wasmtime-go/v37"
+	"github.com/tetratelabs/wazero"
+
 	"github.com/ermes-thesis/ermes-common/wasm-pool/executor"
 
 	"github.com/second-state/WasmEdge-go/wasmedge"
@@ -30,20 +30,6 @@ func NewWasmedgeExecutorPool(poolSize int) *WasmExecutorPool {
 		pool.instances = append(pool.instances, executor.NewWasmedgeExecutor(conf))
 	}
 	conf.Release()
-	return pool
-}
-
-func NewWasmtimeExecutorPool(poolSize int) *WasmExecutorPool {
-	pool := &WasmExecutorPool{}
-
-	for i := 0; i < poolSize; i++ {
-		// Configure WASI imports to write stdout into a file, and then create
-		// a `Store` using this wasi configuration.
-		wasiConfig := wasmtime.NewWasiConfig()
-		pool.instances = append(pool.instances, executor.NewWasmtimeExecutor(wasiConfig))
-		wasiConfig.Close()
-	}
-
 	return pool
 }
 

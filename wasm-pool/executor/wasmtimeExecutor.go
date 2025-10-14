@@ -12,13 +12,27 @@ import (
 
 type WasmtimeExecutor struct {
 	linker *wasmtime.Linker
-	store  *wasmtime.Store
 	inUse  bool
 }
 
 func (exec *WasmtimeExecutor) Invoke(fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse {
 	linker := exec.linker
-	store := exec.store
+
+	// Configure WASI imports to write stdout into a file, and then create
+	// a `Store` using this wasi configuration.
+	wasiConfig := wasmtime.NewWasiConfig()
+	err := wasiConfig.PreopenDir("./sandbox", ".", wasmtime.DIR_WRITE|wasmtime.DIR_READ, wasmtime.FILE_WRITE|wasmtime.FILE_READ)
+	wasiConfig.InheritStdout()
+	wasiConfig.InheritStderr()
+	wasiConfig.InheritStdin()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	store := wasmtime.NewStore(linker.Engine)
+	store.SetWasi(wasiConfig)
+
+	wasiConfig.Close()
 
 	//fmt.Printf("[%s] Loading module\n", time.Now())
 	module, err := wasmtime.NewModule(linker.Engine, fnBuffer)
@@ -106,6 +120,8 @@ func (exec *WasmtimeExecutor) Invoke(fnBuffer []byte, entrypoint string, input .
 		log.Fatalf("Failed to free: %v", err)
 	}
 
+	store.Close()
+
 	//fmt.Printf("[%s] Unmarshal\n", time.Now())
 	wasmResp := model.WasmResponse{}
 	err = json.Unmarshal(outData, &wasmResp)
@@ -131,16 +147,8 @@ func (exec *WasmtimeExecutor) SetInUse() {
 }
 
 func (exec *WasmtimeExecutor) Close() {
-	exec.linker.Close()
-	exec.store.Close()
 }
 
 func (exec *WasmtimeExecutor) RegisterHostFns(fns map[string]any) error {
-	for fnName, fn := range fns {
-		err := exec.linker.DefineFunc(exec.store, "extern", fnName, fn)
-		if err != nil {
-			return err
-		}
-	}
 	return nil
 }

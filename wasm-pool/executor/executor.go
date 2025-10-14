@@ -41,32 +41,9 @@ func NewWasmedgeExecutor(conf *wasmedge.Configure) *WasmedgeExecutor {
 	return exec
 }
 
-func NewWasmtimeExecutor(conf *wasmtime.WasiConfig) *WasmtimeExecutor {
-	engine := wasmtime.NewEngine()
-
-	// Create a linker with WASI functions defined within it
-	linker := wasmtime.NewLinker(engine)
-	err := linker.DefineWasi()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// optional: create sandbox dir
-	if err := os.MkdirAll("./sandbox", os.ModePerm); err != nil {
-		log.Fatalf("Failed to create sandbox directory: %v", err)
-	}
-
-	err = conf.PreopenDir("./sandbox", ".", wasmtime.DIR_WRITE|wasmtime.DIR_READ, wasmtime.FILE_WRITE|wasmtime.FILE_READ)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	store := wasmtime.NewStore(engine)
-	store.SetWasi(conf)
-
+func NewWasmtimeExecutor(linker *wasmtime.Linker) *WasmtimeExecutor {
 	return &WasmtimeExecutor{
 		linker: linker,
-		store:  store,
 		inUse:  false,
 	}
 }
