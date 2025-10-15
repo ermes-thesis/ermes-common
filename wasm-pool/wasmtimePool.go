@@ -2,18 +2,17 @@ package wasm
 
 import (
 	"log"
-	"os"
 
 	"github.com/bytecodealliance/wasmtime-go/v37"
 	"github.com/ermes-thesis/ermes-common/wasm-pool/executor"
 )
 
 type WasmtimeExecutorPool struct {
-	WasmExecutorPool
+	*wasmExecutorPool
 	linker *wasmtime.Linker
 }
 
-func NewWasmtimeExecutorPool(poolSize int) ExecutorPool {
+func NewWasmtimeExecutorPool(poolSize int) *WasmtimeExecutorPool {
 	engine := wasmtime.NewEngine()
 
 	// Create a linker with WASI functions defined within it
@@ -24,16 +23,12 @@ func NewWasmtimeExecutorPool(poolSize int) ExecutorPool {
 	}
 
 	pool := &WasmtimeExecutorPool{
-		linker: linker,
-	}
-
-	// optional: create sandbox dir
-	if err := os.MkdirAll("./sandbox", os.ModePerm); err != nil {
-		log.Fatalf("Failed to create sandbox directory: %v", err)
+		linker:           linker,
+		wasmExecutorPool: newWasmExecutorPool(poolSize),
 	}
 
 	for i := 0; i < poolSize; i++ {
-		pool.instances = append(pool.instances, executor.NewWasmtimeExecutor(linker))
+		pool.instances[i] = executor.NewWasmtimeExecutor(linker)
 	}
 
 	return pool

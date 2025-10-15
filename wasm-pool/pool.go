@@ -2,13 +2,10 @@ package wasm
 
 import (
 	"log"
+	"os"
 	"sync"
 
-	"github.com/tetratelabs/wazero"
-
 	"github.com/ermes-thesis/ermes-common/wasm-pool/executor"
-
-	"github.com/second-state/WasmEdge-go/wasmedge"
 )
 
 type ExecutorPool interface {
@@ -17,49 +14,24 @@ type ExecutorPool interface {
 	Close()
 }
 
-type WasmExecutorPool struct {
+type wasmExecutorPool struct {
+	ExecutorPool
 	instances []executor.Executor
 	mu        sync.Mutex
 }
 
-func NewWasmedgeExecutorPool(poolSize int) *WasmExecutorPool {
-	pool := &WasmExecutorPool{}
-	wasmedge.SetLogErrorLevel()
-	conf := wasmedge.NewConfigure(wasmedge.WASI)
-	for i := 0; i < poolSize; i++ {
-		pool.instances = append(pool.instances, executor.NewWasmedgeExecutor(conf))
+func newWasmExecutorPool(poolSize int) *wasmExecutorPool {
+	// optional: create sandbox dir
+	if err := os.MkdirAll("./sandbox", os.ModePerm); err != nil {
+		log.Fatalf("Failed to create sandbox directory: %v", err)
 	}
-	conf.Release()
-	return pool
+
+	return &wasmExecutorPool{
+		instances: make([]executor.Executor, poolSize),
+	}
 }
 
-func NewWazeroExecutorPool(poolSize int, interpreter bool) *WasmExecutorPool {
-	pool := &WasmExecutorPool{}
-
-	var config wazero.RuntimeConfig
-	if interpreter {
-		config = wazero.NewRuntimeConfigInterpreter()
-	} else {
-		config = wazero.NewRuntimeConfig().WithCompilationCache(wazero.NewCompilationCache())
-	}
-	for i := 0; i < poolSize; i++ {
-		pool.instances = append(pool.instances, executor.NewWazeroExecutor(config))
-	}
-	return pool
-}
-
-func (p *WasmExecutorPool) RegisterHostFns(fns map[string]any) error {
-	for _, exec := range p.instances {
-		err := exec.RegisterHostFns(fns)
-		if err != nil {
-			log.Fatalf("Failed to register module: %v", err)
-			return err
-		}
-	}
-	return nil
-}
-
-func (p *WasmExecutorPool) Acquire() executor.Executor {
+func (p *wasmExecutorPool) Acquire() executor.Executor {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -72,13 +44,4 @@ func (p *WasmExecutorPool) Acquire() executor.Executor {
 	}
 
 	return nil
-}
-
-func (p *WasmExecutorPool) Close() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	for _, exec := range p.instances {
-		exec.Close()
-	}
 }

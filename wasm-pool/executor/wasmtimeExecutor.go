@@ -15,6 +15,13 @@ type WasmtimeExecutor struct {
 	inUse  bool
 }
 
+func NewWasmtimeExecutor(linker *wasmtime.Linker) *WasmtimeExecutor {
+	return &WasmtimeExecutor{
+		linker: linker,
+		inUse:  false,
+	}
+}
+
 func (exec *WasmtimeExecutor) Invoke(fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse {
 	linker := exec.linker
 

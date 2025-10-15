@@ -14,6 +14,20 @@ type WasmedgeExecutor struct {
 	inUse bool
 }
 
+func NewWasmedgeExecutor(conf *wasmedge.Configure) *WasmedgeExecutor {
+	vm := wasmedge.NewVMWithConfig(conf)
+	wasi := vm.GetImportModule(wasmedge.WASI)
+
+	wasi.InitWasi(
+		nil,
+		nil,
+		[]string{".:./sandbox"},
+	)
+	exec := &WasmedgeExecutor{vm: vm, inUse: false}
+
+	return exec
+}
+
 func (exec *WasmedgeExecutor) Invoke(fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse {
 	vm := exec.vm
 

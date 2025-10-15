@@ -17,6 +17,14 @@ type WazeroExecutor struct {
 	inUse     bool
 }
 
+func NewWazeroExecutor(runtime wazero.Runtime, modConfig wazero.ModuleConfig) *WazeroExecutor {
+	return &WazeroExecutor{
+		runtime:   runtime,
+		modConfig: modConfig,
+		inUse:     false,
+	}
+}
+
 func (exec *WazeroExecutor) Invoke(fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse {
 	runtime := exec.runtime
 	ctx := context.Background()
@@ -133,20 +141,8 @@ func (exec *WazeroExecutor) SetInUse() {
 }
 
 func (exec *WazeroExecutor) Close() {
-	err := exec.runtime.Close(context.Background())
-	if err != nil {
-		log.Fatalf("Failed to close runtime: %v", err)
-	}
 }
 
 func (exec *WazeroExecutor) RegisterHostFns(fns map[string]any) error {
-	builder := exec.runtime.NewHostModuleBuilder("extern")
-
-	for fnName, fn := range fns {
-
-		builder.NewFunctionBuilder().WithFunc(fn).Export(fnName)
-	}
-
-	_, err := builder.Instantiate(context.Background())
-	return err
+	return nil
 }
