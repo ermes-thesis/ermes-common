@@ -13,11 +13,17 @@ type WasmtimeExecutorPool struct {
 }
 
 func NewWasmtimeExecutorPool(poolSize int) *WasmtimeExecutorPool {
-	engine := wasmtime.NewEngine()
+	cfg := wasmtime.NewConfig()
+	err := cfg.CacheConfigLoadDefault()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	engine := wasmtime.NewEngineWithConfig(cfg)
 
 	// Create a linker with WASI functions defined within it
 	linker := wasmtime.NewLinker(engine)
-	err := linker.DefineWasi()
+	err = linker.DefineWasi()
 	if err != nil {
 		log.Fatal(err)
 	}
