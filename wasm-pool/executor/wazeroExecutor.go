@@ -37,6 +37,12 @@ func (exec *WazeroExecutor) Invoke(fnBuffer []byte, entrypoint string, input ...
 	if err != nil {
 		log.Fatalf("Failed to create instance: %v", err)
 	}
+
+	// If we close the compiled module at the end of the execution, it is removed from the in-memory cache and
+	// subsequent calls need to recompile the module. This is suboptimal, but it avoids to make the wazero's
+	// cache grow indefinitely
+	defer compiledMod.Close(ctx)
+
 	defer instance.Close(ctx)
 
 	//fmt.Printf("[%s] Calling func _initialize\n", time.Now())
