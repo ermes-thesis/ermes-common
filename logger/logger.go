@@ -43,7 +43,8 @@ type LogFile struct {
 	LogFileName string
 }
 
-const levelSectionWidth = 16
+const levelSectionWidthWithColors = 16
+const levelSectionWidthWithoutColors = 7
 
 func makeRotatingFileWriter(logPath string) io.WriteCloser {
 	return &lumberjack.Logger{
@@ -150,11 +151,21 @@ func buildConsoleWriter(out io.Writer, noColor bool) diode.Writer {
 			}
 			return i.(string)
 		},
+		FormatFieldName: func(i any) string {
+			str, ok := i.(string)
+			if !ok {
+				return ""
+			}
+			return "| " + str + "="
+		},
 		FormatLevel: func(levelStr any) string {
 			uppercaseLevel := strings.ToUpper(levelStr.(string))
 			level, _ := zerolog.ParseLevel(uppercaseLevel)
 			levelSection := colorize(fmt.Sprintf("[%s]", uppercaseLevel), zerolog.LevelColors[level], noColor)
-			pad := levelSectionWidth - len(levelSection)
+			pad := levelSectionWidthWithColors - len(levelSection)
+			if noColor {
+				pad = levelSectionWidthWithoutColors - len(levelSection)
+			}
 			levelSection = levelSection + strings.Repeat(" ", pad)
 			return levelSection
 		},
