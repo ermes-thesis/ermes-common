@@ -212,7 +212,7 @@ func (e *EqCondition) Validate() error {
 func (e *EqCondition) ToRedisQuery() (string, error) {
 	switch v := e.Value.(type) {
 	case string:
-		return fmt.Sprintf(`@%s:"%s"`, e.Field, escapeString(v)), nil
+		return fmt.Sprintf(`@%s:{%s}`, e.Field, escapeString(v)), nil
 	case float64, int:
 		return fmt.Sprintf(`@%s:[%v %v]`, e.Field, v, v), nil
 	default:
