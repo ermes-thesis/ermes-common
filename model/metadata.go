@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+const PublicGroup = "ALL"
+
 // Consistency defines the consistency level for data collections in the Ermes framework.
 // It determines the guarantees provided when reading or writing data.
 type Consistency uint8
