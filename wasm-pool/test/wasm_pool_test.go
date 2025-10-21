@@ -6,11 +6,24 @@ import (
 	"os"
 	"testing"
 
+	"github.com/ermes-thesis/ermes-common/logger"
 	"github.com/ermes-thesis/ermes-common/wasm-pool"
+	"github.com/rs/zerolog"
+	"github.com/stretchr/testify/require"
 )
 
+func createNewLogger(t testing.TB) *logger.Logger {
+	log, err := logger.NewLogger(logger.Config{
+		Level:     zerolog.InfoLevel,
+		Format:    "text",
+		AddSource: false,
+	})
+	require.NoError(t, err)
+	return log
+}
+
 func TestWasmedgePool(t *testing.T) {
-	pool := wasm.NewWasmedgeExecutorPool(10)
+	pool := wasm.NewWasmedgeExecutorPool(10, createNewLogger(t))
 	defer pool.Close()
 
 	wasmBuffer, err := os.ReadFile("auth_function.wasm")
@@ -30,7 +43,7 @@ func TestWasmedgePool(t *testing.T) {
 }
 
 func TestWasmtimePool(t *testing.T) {
-	pool := wasm.NewWasmtimeExecutorPool(10)
+	pool := wasm.NewWasmtimeExecutorPool(10, createNewLogger(t))
 	defer pool.Close()
 
 	wasmBuffer, err := os.ReadFile("auth_function.wasm")
@@ -50,7 +63,7 @@ func TestWasmtimePool(t *testing.T) {
 }
 
 func TestWazeroPool(t *testing.T) {
-	pool := wasm.NewWazeroExecutorPool(10, false, context.Background())
+	pool := wasm.NewWazeroExecutorPool(10, false, context.Background(), createNewLogger(t))
 	defer pool.Close()
 
 	wasmBuffer, err := os.ReadFile("auth_function.wasm")
@@ -70,7 +83,7 @@ func TestWazeroPool(t *testing.T) {
 }
 
 func BenchmarkWasmedgePool(b *testing.B) {
-	pool := wasm.NewWasmedgeExecutorPool(10)
+	pool := wasm.NewWasmedgeExecutorPool(10, createNewLogger(b))
 	defer pool.Close()
 
 	wasmBuffer, err := os.ReadFile("auth_function.wasm")
@@ -92,7 +105,7 @@ func BenchmarkWasmedgePool(b *testing.B) {
 }
 
 func BenchmarkWasmtimePool(b *testing.B) {
-	pool := wasm.NewWasmtimeExecutorPool(10)
+	pool := wasm.NewWasmtimeExecutorPool(10, createNewLogger(b))
 	defer pool.Close()
 
 	wasmBuffer, err := os.ReadFile("auth_function.wasm")
@@ -114,7 +127,7 @@ func BenchmarkWasmtimePool(b *testing.B) {
 }
 
 func BenchmarkWazeroPool(b *testing.B) {
-	pool := wasm.NewWazeroExecutorPool(10, false, context.Background())
+	pool := wasm.NewWazeroExecutorPool(10, false, context.Background(), createNewLogger(b))
 	defer pool.Close()
 
 	wasmBuffer, err := os.ReadFile("auth_function.wasm")
