@@ -19,7 +19,7 @@ func NewWasmedgeExecutorPool(poolSize int, log *logger.Logger) *WasmedgeExecutor
 	wasmedge.SetLogErrorLevel()
 	conf := wasmedge.NewConfigure(wasmedge.WASI)
 	for i := 0; i < poolSize; i++ {
-		pool.instances[i] = executor.NewWasmedgeExecutor(conf)
+		pool.instances[i] = executor.NewWasmedgeExecutor(conf, log)
 	}
 	conf.Release()
 	return pool

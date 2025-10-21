@@ -18,7 +18,7 @@ type WasmedgeExecutor struct {
 	log   *logger.Logger
 }
 
-func NewWasmedgeExecutor(conf *wasmedge.Configure) *WasmedgeExecutor {
+func NewWasmedgeExecutor(conf *wasmedge.Configure, log *logger.Logger) *WasmedgeExecutor {
 	vm := wasmedge.NewVMWithConfig(conf)
 	wasi := vm.GetImportModule(wasmedge.WASI)
 
@@ -27,7 +27,7 @@ func NewWasmedgeExecutor(conf *wasmedge.Configure) *WasmedgeExecutor {
 		nil,
 		[]string{".:./sandbox"},
 	)
-	exec := &WasmedgeExecutor{vm: vm, inUse: false}
+	exec := &WasmedgeExecutor{vm: vm, inUse: false, log: log}
 
 	return exec
 }

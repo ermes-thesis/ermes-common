@@ -44,7 +44,7 @@ func NewWazeroExecutorPool(poolSize int, interpreter bool, ctx context.Context, 
 	}
 
 	for i := 0; i < poolSize; i++ {
-		pool.instances[i] = executor.NewWazeroExecutor(runtime, modConf)
+		pool.instances[i] = executor.NewWazeroExecutor(runtime, modConf, log)
 	}
 	return pool
 }
