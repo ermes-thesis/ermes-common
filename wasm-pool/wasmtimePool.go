@@ -1,9 +1,8 @@
 package wasm
 
 import (
-	"log"
-
 	"github.com/bytecodealliance/wasmtime-go/v37"
+	"github.com/ermes-thesis/ermes-common/logger"
 	"github.com/ermes-thesis/ermes-common/wasm-pool/executor"
 )
 
@@ -12,11 +11,11 @@ type WasmtimeExecutorPool struct {
 	linker *wasmtime.Linker
 }
 
-func NewWasmtimeExecutorPool(poolSize int) *WasmtimeExecutorPool {
+func NewWasmtimeExecutorPool(poolSize int, log *logger.Logger) *WasmtimeExecutorPool {
 	cfg := wasmtime.NewConfig()
 	err := cfg.CacheConfigLoadDefault()
 	if err != nil {
-		log.Fatal(err)
+		log.Errorf("Failed to load Wasmtime cache config: %v", err)
 	}
 
 	engine := wasmtime.NewEngineWithConfig(cfg)
@@ -25,16 +24,16 @@ func NewWasmtimeExecutorPool(poolSize int) *WasmtimeExecutorPool {
 	linker := wasmtime.NewLinker(engine)
 	err = linker.DefineWasi()
 	if err != nil {
-		log.Fatal(err)
+		log.Errorf("Failed to define WASI in linker: %v", err)
 	}
 
 	pool := &WasmtimeExecutorPool{
 		linker:           linker,
-		wasmExecutorPool: newWasmExecutorPool(poolSize),
+		wasmExecutorPool: newWasmExecutorPool(poolSize, log),
 	}
 
 	for i := 0; i < poolSize; i++ {
-		pool.instances[i] = executor.NewWasmtimeExecutor(linker)
+		pool.instances[i] = executor.NewWasmtimeExecutor(linker, log)
 	}
 
 	return pool

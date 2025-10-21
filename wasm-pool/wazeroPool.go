@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/ermes-thesis/ermes-common/logger"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 
@@ -17,7 +18,7 @@ type WazeroExecutorPool struct {
 	ctx     context.Context
 }
 
-func NewWazeroExecutorPool(poolSize int, interpreter bool, ctx context.Context) *WazeroExecutorPool {
+func NewWazeroExecutorPool(poolSize int, interpreter bool, ctx context.Context, log *logger.Logger) *WazeroExecutorPool {
 	var config wazero.RuntimeConfig
 	if interpreter {
 		config = wazero.NewRuntimeConfigInterpreter()
@@ -38,7 +39,7 @@ func NewWazeroExecutorPool(poolSize int, interpreter bool, ctx context.Context) 
 	pool := &WazeroExecutorPool{
 		ctx:              ctx,
 		runtime:          runtime,
-		wasmExecutorPool: newWasmExecutorPool(poolSize),
+		wasmExecutorPool: newWasmExecutorPool(poolSize, log),
 	}
 
 	for i := 0; i < poolSize; i++ {

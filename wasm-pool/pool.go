@@ -1,10 +1,10 @@
 package wasm
 
 import (
-	"log"
 	"os"
 	"sync"
 
+	"github.com/ermes-thesis/ermes-common/logger"
 	"github.com/ermes-thesis/ermes-common/wasm-pool/executor"
 )
 
@@ -18,16 +18,18 @@ type wasmExecutorPool struct {
 	ExecutorPool
 	instances []executor.Executor
 	mu        sync.Mutex
+	log       *logger.Logger
 }
 
-func newWasmExecutorPool(poolSize int) *wasmExecutorPool {
+func newWasmExecutorPool(poolSize int, log *logger.Logger) *wasmExecutorPool {
 	// optional: create sandbox dir
 	if err := os.MkdirAll("./sandbox", os.ModePerm); err != nil {
-		log.Fatalf("Failed to create sandbox directory: %v", err)
+		log.Errorf("Failed to create sandbox directory: %v", err)
 	}
 
 	return &wasmExecutorPool{
 		instances: make([]executor.Executor, poolSize),
+		log:       log,
 	}
 }
 
@@ -35,9 +37,9 @@ func (p *wasmExecutorPool) Acquire() executor.Executor {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	for _, exec := range p.instances {
+	for i, exec := range p.instances {
 		if !exec.IsInUse() {
-			//log.Default().Println("Acquired executor N. ", index)
+			p.log.Debugf("Acquired executor N. %d", i)
 			exec.SetInUse()
 			return exec
 		}

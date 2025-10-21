@@ -3,8 +3,11 @@ package executor
 import (
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
+	"time"
 
 	"github.com/bytecodealliance/wasmtime-go/v37"
+	"github.com/ermes-thesis/ermes-common/logger"
 	"github.com/ermes-thesis/ermes-common/model"
 
 	"log"
@@ -13,12 +16,14 @@ import (
 type WasmtimeExecutor struct {
 	linker *wasmtime.Linker
 	inUse  bool
+	log    *logger.Logger
 }
 
-func NewWasmtimeExecutor(linker *wasmtime.Linker) *WasmtimeExecutor {
+func NewWasmtimeExecutor(linker *wasmtime.Linker, log *logger.Logger) *WasmtimeExecutor {
 	return &WasmtimeExecutor{
 		linker: linker,
 		inUse:  false,
+		log:    log,
 	}
 }
 
@@ -41,23 +46,23 @@ func (exec *WasmtimeExecutor) Invoke(fnBuffer []byte, entrypoint string, input .
 
 	wasiConfig.Close()
 
-	//fmt.Printf("[%s] Loading module\n", time.Now())
+	fmt.Printf("[%s] Loading module\n", time.Now())
 	module, err := wasmtime.NewModule(linker.Engine, fnBuffer)
 	if err != nil {
-		log.Fatalf("Failed to load wasm file: %v", err)
+		exec.log.Errorf("Failed to load wasm file: %v", err)
 	}
 
-	//fmt.Printf("[%s] Instantiating module\n", time.Now())
+	fmt.Printf("[%s] Instantiating module\n", time.Now())
 	instance, err := linker.Instantiate(store, module)
 	if err != nil {
-		log.Fatalf("Failed to create instance: %v", err)
+		exec.log.Errorf("Failed to create instance: %v", err)
 	}
 
-	//fmt.Printf("[%s] Calling func _initialize\n", time.Now())
+	exec.log.Debugf("[%s] Calling func _initialize\n", time.Now())
 	if initFunc := instance.GetFunc(store, "_initialize"); initFunc != nil {
 		_, err = initFunc.Call(store)
 		if err != nil {
-			log.Fatalf("Failed to execute _initialize: %v", err)
+			exec.log.Errorf("Failed to execute _initialize: %v", err)
 		}
 	}
 
@@ -68,24 +73,28 @@ func (exec *WasmtimeExecutor) Invoke(fnBuffer []byte, entrypoint string, input .
 		inputData = append(inputData, arg...)
 	}
 
-	//fmt.Printf("[%s] Getting malloc and free funcs\n", time.Now())
+	exec.log.Debugf("[%s] Getting malloc and free funcs\n", time.Now())
 	mallocFunc := instance.GetFunc(store, "malloc")
 	freeFunc := instance.GetFunc(store, "free")
 	if mallocFunc == nil || freeFunc == nil {
-		log.Fatalf("module does not export malloc/free; ensure your TinyGo build exports them")
+		exec.log.Errorf("module does not export malloc/free; ensure your TinyGo build exports them")
 	}
 
-	//fmt.Printf("[%s] Calling malloc\n", time.Now())
+	exec.log.Debugf("[%s] Calling malloc\n", time.Now())
 	allocateResult, err := mallocFunc.Call(store, int32(len(inputData)))
 	if err != nil {
-		log.Fatalf("Failed to execute malloc: %v", err)
+		exec.log.Errorf("Failed to execute malloc: %v", err)
 	}
 	ptr := allocateResult.(int32)
 
-	//fmt.Printf("[%s] Writing memory\n", time.Now())
+	exec.log.Debugf("[%s] Writing memory\n", time.Now())
 	memExport := instance.GetExport(store, "memory")
 	if memExport == nil {
-		log.Fatalf("memory does not export memory")
+		exec.log.Errorf("memory does not export memory")
+		return model.WasmResponse{
+			HttpCode: 500,
+			Response: []byte("memory export not found"),
+		}
 	}
 	mem := memExport.Memory()
 
@@ -97,17 +106,17 @@ func (exec *WasmtimeExecutor) Invoke(fnBuffer []byte, entrypoint string, input .
 	entryArgs = append([]any{ptr}, entryArgs...)
 	entrypointFn := instance.GetFunc(store, entrypoint)
 	if entrypointFn == nil {
-		log.Fatalf("entrypoint function not found")
+		exec.log.Errorf("entrypoint function not found")
 	}
 
-	//fmt.Printf("[%s] Running func\n", time.Now())
+	exec.log.Debugf("[%s] Running func\n", time.Now())
 	entryResult, err := entrypointFn.Call(store, entryArgs...)
 	if err != nil {
-		log.Fatalf("Failed execute entry function: %v", err)
+		exec.log.Errorf("Failed execute entry function: %v", err)
 	}
 	outputPointer := entryResult.(int32)
 
-	//fmt.Printf("[%s] Getting output\n", time.Now())
+	exec.log.Debugf("[%s] Getting output\n", time.Now())
 	outData := make([]byte, 8)
 	copy(outData, mem.UnsafeData(store)[int(outputPointer):int(outputPointer)+8])
 	resultPointer := binary.LittleEndian.Uint32(outData[:4])
@@ -118,25 +127,25 @@ func (exec *WasmtimeExecutor) Invoke(fnBuffer []byte, entrypoint string, input .
 	end = start + int(resultLength)
 	outData = make([]byte, resultLength)
 	copy(outData, mem.UnsafeData(store)[start:end])
-	//fmt.Println(string(outData))
+	exec.log.Debug(string(outData))
 
-	//fmt.Printf("[%s] Freeing memory\n", time.Now())
+	exec.log.Debugf("[%s] Freeing memory\n", time.Now())
 	// Deallocate the buffers.
 	_, err = freeFunc.Call(store, ptr)
 	if err != nil {
-		log.Fatalf("Failed to free: %v", err)
+		exec.log.Errorf("Failed to free: %v", err)
 	}
 
 	store.Close()
 
-	//fmt.Printf("[%s] Unmarshal\n", time.Now())
+	exec.log.Debugf("[%s] Unmarshal\n", time.Now())
 	wasmResp := model.WasmResponse{}
 	err = json.Unmarshal(outData, &wasmResp)
 	if err != nil {
-		log.Fatalf("Failed to unmarshal wasm response: %v", err)
+		exec.log.Errorf("Failed to unmarshal wasm response: %v", err)
 	}
 
-	//fmt.Printf("[%s] ------ END ------\n", time.Now())
+	exec.log.Debugf("[%s] ------ END ------\n", time.Now())
 
 	return wasmResp
 }

@@ -3,6 +3,7 @@ package wasm
 import (
 	"log"
 
+	"github.com/ermes-thesis/ermes-common/logger"
 	"github.com/ermes-thesis/ermes-common/wasm-pool/executor"
 
 	"github.com/second-state/WasmEdge-go/wasmedge"
@@ -12,9 +13,9 @@ type WasmedgeExecutorPool struct {
 	*wasmExecutorPool
 }
 
-func NewWasmedgeExecutorPool(poolSize int) *WasmedgeExecutorPool {
+func NewWasmedgeExecutorPool(poolSize int, log *logger.Logger) *WasmedgeExecutorPool {
 	pool := &WasmedgeExecutorPool{
-		wasmExecutorPool: newWasmExecutorPool(poolSize),
+		wasmExecutorPool: newWasmExecutorPool(poolSize, log),
 	}
 	wasmedge.SetLogErrorLevel()
 	conf := wasmedge.NewConfigure(wasmedge.WASI)
