@@ -3,7 +3,10 @@ package executor
 import (
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
+	"github.com/ermes-thesis/ermes-common/logger"
 	"log"
+	"time"
 
 	"github.com/ermes-thesis/ermes-common/model"
 	"github.com/second-state/WasmEdge-go/wasmedge"
@@ -12,6 +15,7 @@ import (
 type WasmedgeExecutor struct {
 	vm    *wasmedge.VM
 	inUse bool
+	log   *logger.Logger
 }
 
 func NewWasmedgeExecutor(conf *wasmedge.Configure) *WasmedgeExecutor {
@@ -29,29 +33,46 @@ func NewWasmedgeExecutor(conf *wasmedge.Configure) *WasmedgeExecutor {
 }
 
 func (exec *WasmedgeExecutor) Invoke(fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse {
+	exec.log.Info("Starting WASM function execution", "time", time.Now().Unix())
 	vm := exec.vm
 
 	//fmt.Printf("[%s] Loading module\n", time.Now())
 	err := vm.LoadWasmBuffer(fnBuffer)
 	if err != nil {
-		log.Fatalf("Failed to load wasm file: %v", err)
+		exec.log.Error("Failed to load wasm file", "error", err)
+		return model.WasmResponse{
+			HttpCode: 500,
+			Response: fmt.Sprintf("failed to load wasm file: %v", err),
+		}
 	}
 
 	err = vm.Validate()
 	if err != nil {
-		log.Fatalf("Failed to validate wasm file: %v", err)
+		exec.log.Error("Failed to validate WASM module", "error", err)
+		return model.WasmResponse{
+			HttpCode: 500,
+			Response: fmt.Sprintf("failed to validate module: %v", err),
+		}
 	}
 
-	//fmt.Printf("[%s] Instantiating module\n", time.Now())
+	exec.log.Debug("Instantiating module", "time", time.Now().Unix())
 	err = vm.Instantiate()
 	if err != nil {
-		log.Fatalf("Failed to instantiate wasm file: %v", err)
+		exec.log.Error("Failed to create instance", "error", err)
+		return model.WasmResponse{
+			HttpCode: 500,
+			Response: fmt.Sprintf("failed to instantiating the module: %v", err),
+		}
 	}
 
-	//fmt.Printf("[%s] Calling func _initialize\n", time.Now())
+	exec.log.Debug("Calling func _initialize", "time", time.Now().Unix())
 	_, err = vm.Execute("_initialize")
 	if err != nil {
-		log.Fatalf("Failed to execute wasm file: %v", err)
+		exec.log.Error("Failed to execute _initialize", "error", err)
+		return model.WasmResponse{
+			HttpCode: 500,
+			Response: fmt.Sprintf("failed to execute initialization function: %v", err),
+		}
 	}
 
 	var inputData []byte
@@ -61,36 +82,52 @@ func (exec *WasmedgeExecutor) Invoke(fnBuffer []byte, entrypoint string, input .
 		inputData = append(inputData, arg...)
 	}
 
-	//fmt.Printf("[%s] Calling malloc\n", time.Now())
+	exec.log.Debug("Calling malloc", "time", time.Now().Unix())
 	// Allocate memory for the request and the context.
 	allocateResult, err := vm.Execute("malloc", int32(len(inputData)))
 	if err != nil {
-		log.Fatalf("Failed to execute malloc: %v", err)
+		exec.log.Error("Failed to execute malloc", "error", err)
+		return model.WasmResponse{
+			HttpCode: 500,
+			Response: fmt.Sprintf("Failed to execute malloc function: %v", err),
+		}
 	}
 	ptr := allocateResult[0].(int32)
 
-	//fmt.Printf("[%s] Writing memory\n", time.Now())
+	exec.log.Debug("Writing memory", "time", time.Now().Unix())
 	// Write the input into the memory.
 	mod := vm.GetActiveModule()
 	mem := mod.FindMemory("memory")
 	err = mem.SetData(inputData, uint(ptr), uint(len(inputData)))
 	if err != nil {
-		log.Fatalf("Failed to set memory: %v", err)
+		exec.log.Error("Failed to writing WASM memory", "error", err)
+		return model.WasmResponse{
+			HttpCode: 500,
+			Response: fmt.Sprintf("Failed to writing WASM memory: %v", err),
+		}
 	}
 
-	//fmt.Printf("[%s] Running func\n", time.Now())
+	exec.log.Debug("Running func", "time", time.Now().Unix())
 	// Run the `entry` function, passing the request pointer and the length of the buffers.
 	entryArgs = append([]any{ptr}, entryArgs...)
 	entryResult, err := vm.Execute(entrypoint, entryArgs...)
 	if err != nil {
-		log.Fatalf("Failed execute entry function: %v", err)
+		exec.log.Error("Failed execute entry function", "error", err)
+		return model.WasmResponse{
+			HttpCode: 500,
+			Response: fmt.Sprintf("Failed to execute entrypoint function: %v", err),
+		}
 	}
 	outputPointer := entryResult[0].(int32)
 
-	//fmt.Printf("[%s] Getting output\n", time.Now())
+	exec.log.Debug("Getting output", "time", time.Now().Unix())
 	outData, err := mem.GetData(uint(outputPointer), 8)
 	if err != nil {
-		log.Fatalf("Failed to get memory: %v", err)
+		exec.log.Error("Failed to reading WASM memory", "error", err)
+		return model.WasmResponse{
+			HttpCode: 500,
+			Response: fmt.Sprintf("Failed to reading WASM memory: %v", err),
+		}
 	}
 	resultPointer := binary.LittleEndian.Uint32(outData[:4])
 	resultLength := binary.LittleEndian.Uint32(outData[4:])
@@ -98,25 +135,36 @@ func (exec *WasmedgeExecutor) Invoke(fnBuffer []byte, entrypoint string, input .
 	// Read the result of the function.
 	outData, err = mem.GetData(uint(resultPointer), uint(resultLength))
 	if err != nil {
-		log.Fatalf("Failed to get memory: %v", err)
+		exec.log.Error("Failed to reading WASM memory", "error", err)
+		return model.WasmResponse{
+			HttpCode: 500,
+			Response: fmt.Sprintf("Failed to reading WASM memory: %v", err),
+		}
 	}
-	//fmt.Println(string(outData))
 
-	//fmt.Printf("[%s] Freeing memory\n", time.Now())
+	exec.log.Debug("Freeing memory", "time", time.Now().Unix())
 	// Deallocate the buffers.
 	_, err = vm.Execute("free", ptr)
 	if err != nil {
-		log.Fatalf("Failed to free: %v", err)
+		exec.log.Error("Failed to free memory", "error", err)
+		return model.WasmResponse{
+			HttpCode: 500,
+			Response: fmt.Sprintf("Failed to free memory: %v", err),
+		}
 	}
 
+	exec.log.Debug("Unmarshalling response", "time", time.Now().Unix())
 	wasmResp := model.WasmResponse{}
 	err = json.Unmarshal(outData, &wasmResp)
 	if err != nil {
-		log.Fatalf("Failed to unmarshal wasm response: %v", err)
+		exec.log.Error("Failed to unmarshal wasm response", "error", err)
+		return model.WasmResponse{
+			HttpCode: 500,
+			Response: fmt.Sprintf("Failed to unmarshal wasm response: %v", err),
+		}
 	}
 
-	//fmt.Printf("[%s] ------ END ------\n", time.Now())
-
+	exec.log.Info("Ending WASM function execution", "time", time.Now().Unix())
 	return wasmResp
 }
 

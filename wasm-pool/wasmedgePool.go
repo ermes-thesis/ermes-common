@@ -1,8 +1,7 @@
 package wasm
 
 import (
-	"log"
-
+	"fmt"
 	"github.com/ermes-thesis/ermes-common/logger"
 	"github.com/ermes-thesis/ermes-common/wasm-pool/executor"
 
@@ -30,8 +29,8 @@ func (p *WasmedgeExecutorPool) RegisterHostFns(fns map[string]any) error {
 	for _, exec := range p.instances {
 		err := exec.RegisterHostFns(fns)
 		if err != nil {
-			log.Fatalf("Failed to register module: %v", err)
-			return err
+			p.log.Error("RegisterHostFns failed", "fns", fmt.Sprintf("%+v", fns), "error", err)
+			return fmt.Errorf("failed to register host functions: %v", err)
 		}
 	}
 	return nil

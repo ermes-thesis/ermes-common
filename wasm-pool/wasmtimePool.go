@@ -1,6 +1,7 @@
 package wasm
 
 import (
+	"fmt"
 	"github.com/bytecodealliance/wasmtime-go/v37"
 	"github.com/ermes-thesis/ermes-common/logger"
 	"github.com/ermes-thesis/ermes-common/wasm-pool/executor"
@@ -43,7 +44,8 @@ func (p *WasmtimeExecutorPool) RegisterHostFns(fns map[string]any) error {
 	for fnName, fn := range fns {
 		err := p.linker.FuncWrap("extern", fnName, fn)
 		if err != nil {
-			return err
+			p.log.Error("RegisterHostFns failed", "fns", fmt.Sprintf("%+v", fns), "error", err)
+			return fmt.Errorf("failed to register host functions: %v", err)
 		}
 	}
 	return nil

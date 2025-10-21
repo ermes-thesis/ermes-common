@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
+	"github.com/ermes-thesis/ermes-common/logger"
 	"log"
+	"time"
 
 	"github.com/ermes-thesis/ermes-common/model"
 	"github.com/tetratelabs/wazero"
@@ -15,6 +18,7 @@ type WazeroExecutor struct {
 	runtime   wazero.Runtime
 	modConfig wazero.ModuleConfig
 	inUse     bool
+	log       *logger.Logger
 }
 
 func NewWazeroExecutor(runtime wazero.Runtime, modConfig wazero.ModuleConfig) *WazeroExecutor {
@@ -26,30 +30,45 @@ func NewWazeroExecutor(runtime wazero.Runtime, modConfig wazero.ModuleConfig) *W
 }
 
 func (exec *WazeroExecutor) Invoke(fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse {
+	exec.log.Info("Starting WASM function execution", "time", time.Now().Unix())
 	runtime := exec.runtime
 	ctx := context.Background()
 
-	//fmt.Printf("[%s] Instantiating module\n", time.Now())
+	exec.log.Debug("Instantiating module", "time", time.Now().Unix())
 	// Need to call CompileModule and InstantiateModule separately and not with the convenience method InstantiateWithConfig
 	// because the latter removes from the in-memory cache the compiled module, meaning that even if the module is
 	compiledMod, err := runtime.CompileModule(ctx, fnBuffer)
+	if err != nil {
+		exec.log.Error("Failed to compile module", "error", err)
+		return model.WasmResponse{
+			HttpCode: 500,
+			Response: fmt.Sprintf("Failed to compile module: %v", err),
+		}
+	}
 	instance, err := runtime.InstantiateModule(ctx, compiledMod, exec.modConfig)
 	if err != nil {
-		log.Fatalf("Failed to create instance: %v", err)
+		exec.log.Error("Failed to create instance", "error", err)
+		return model.WasmResponse{
+			HttpCode: 500,
+			Response: fmt.Sprintf("failed to instantiating the module: %v", err),
+		}
 	}
 
 	// If we close the compiled module at the end of the execution, it is removed from the in-memory cache and
 	// subsequent calls need to recompile the module. This is suboptimal, but it avoids to make the wazero's
 	// cache grow indefinitely
 	defer compiledMod.Close(ctx)
-
 	defer instance.Close(ctx)
 
-	//fmt.Printf("[%s] Calling func _initialize\n", time.Now())
+	exec.log.Debug("Calling func _initialize", "time", time.Now().Unix())
 	if initFunc := instance.ExportedFunction("_initialize"); initFunc != nil {
 		_, err = initFunc.Call(ctx)
 		if err != nil {
-			log.Fatalf("Failed to execute _initialize: %v", err)
+			exec.log.Error("Failed to execute _initialize", "error", err)
+			return model.WasmResponse{
+				HttpCode: 500,
+				Response: fmt.Sprintf("failed to execute initialization function: %v", err),
+			}
 		}
 	}
 
@@ -60,14 +79,18 @@ func (exec *WazeroExecutor) Invoke(fnBuffer []byte, entrypoint string, input ...
 		inputData = append(inputData, arg...)
 	}
 
-	//fmt.Printf("[%s] Getting malloc and free funcs\n", time.Now())
+	exec.log.Debug("Getting malloc and free funcs", "time", time.Now().Unix())
 	mallocFunc := instance.ExportedFunction("malloc")
 	freeFunc := instance.ExportedFunction("free")
 	if mallocFunc == nil || freeFunc == nil {
-		log.Fatalf("module does not export malloc/free; ensure your TinyGo build exports them")
+		exec.log.Error("module does not export malloc/free; ensure your TinyGo build exports them")
+		return model.WasmResponse{
+			HttpCode: 500,
+			Response: fmt.Sprintf("Module does not export malloc/free functions: %v", err),
+		}
 	}
 
-	//fmt.Printf("[%s] Calling malloc\n", time.Now())
+	exec.log.Debug("Calling malloc", "time", time.Now().Unix())
 	allocateResult, err := mallocFunc.Call(ctx, api.EncodeI32(int32(len(inputData))))
 	if err != nil {
 		log.Fatalf("Failed to execute malloc: %v", err)
@@ -75,35 +98,55 @@ func (exec *WazeroExecutor) Invoke(fnBuffer []byte, entrypoint string, input ...
 
 	ptr := api.DecodeI32(allocateResult[0])
 
+	exec.log.Debug("Writing memory", "time", time.Now().Unix())
 	mem := instance.Memory()
 	if mem == nil {
-		log.Fatalf("memory does not export memory")
+		exec.log.Error("Wasm instance does not export memory object")
+		return model.WasmResponse{
+			HttpCode: 500,
+			Response: fmt.Sprintf("Wasm instance does not export memory object: %v", err),
+		}
 	}
 
-	//fmt.Printf("[%s] Writing memory\n", time.Now())
 	ok := mem.Write(uint32(ptr), inputData)
 	if !ok {
-		log.Fatal("Failed to set memory")
+		exec.log.Error("Failed to writing WASM memory", "error", err)
+		return model.WasmResponse{
+			HttpCode: 500,
+			Response: fmt.Sprintf("Failed to writing WASM memory: %v", err),
+		}
 	}
 
 	// Run the `entry` function, passing the request pointer and the length of the buffers.
 	entryArgs = append([]uint64{api.EncodeI32(ptr)}, entryArgs...)
 	entrypointFn := instance.ExportedFunction(entrypoint)
 	if entrypointFn == nil {
-		log.Fatalf("entrypoint function not found")
+		exec.log.Error("entrypoint function not found")
+		return model.WasmResponse{
+			HttpCode: 500,
+			Response: fmt.Sprintf("Wasm module does not export entrypoint function: %v", err),
+		}
 	}
 
-	//fmt.Printf("[%s] Running func\n", time.Now())
+	exec.log.Debug("Running func", "time", time.Now().Unix())
 	entryResult, err := entrypointFn.Call(ctx, entryArgs...)
 	if err != nil {
-		log.Fatalf("Failed execute entry function: %v", err)
+		exec.log.Error("Failed execute entry function", "error", err)
+		return model.WasmResponse{
+			HttpCode: 500,
+			Response: fmt.Sprintf("Failed to execute entrypoint function: %v", err),
+		}
 	}
 	outputPointer := api.DecodeI32(entryResult[0])
 
-	//fmt.Printf("[%s] Getting output\n", time.Now())
+	exec.log.Debug("Getting output", "time", time.Now().Unix())
 	outData, ok := mem.Read(uint32(outputPointer), 8)
 	if !ok {
-		log.Fatalf("Failed to read memory")
+		exec.log.Error("Failed to reading WASM memory", "error", err)
+		return model.WasmResponse{
+			HttpCode: 500,
+			Response: fmt.Sprintf("Failed to reading WASM memory: %v", err),
+		}
 	}
 	resultPointer := binary.LittleEndian.Uint32(outData[:4])
 	resultLength := binary.LittleEndian.Uint32(outData[4:])
@@ -111,26 +154,36 @@ func (exec *WazeroExecutor) Invoke(fnBuffer []byte, entrypoint string, input ...
 	// Read the result of the function.
 	outData, ok = mem.Read(resultPointer, resultLength)
 	if !ok {
-		log.Fatalf("Failed to read result")
+		exec.log.Error("Failed to reading WASM memory", "error", err)
+		return model.WasmResponse{
+			HttpCode: 500,
+			Response: fmt.Sprintf("Failed to reading WASM memory: %v", err),
+		}
 	}
-	//fmt.Println(string(outData))
 
-	//fmt.Printf("[%s] Freeing memory\n", time.Now())
+	exec.log.Debug("Freeing memory", "time", time.Now().Unix())
 	// Deallocate the buffers.
 	_, err = freeFunc.Call(ctx, uint64(ptr))
 	if err != nil {
-		log.Fatalf("Failed to free: %v", err)
+		exec.log.Error("Failed to free memory", "error", err)
+		return model.WasmResponse{
+			HttpCode: 500,
+			Response: fmt.Sprintf("Failed to free memory: %v", err),
+		}
 	}
 
-	//fmt.Printf("[%s] Unmarshal\n", time.Now())
+	exec.log.Debug("Unmarshalling response", "time", time.Now().Unix())
 	wasmResp := model.WasmResponse{}
 	err = json.Unmarshal(outData, &wasmResp)
 	if err != nil {
-		log.Fatalf("Failed to unmarshal wasm response: %v", err)
+		exec.log.Error("Failed to unmarshal wasm response", "error", err)
+		return model.WasmResponse{
+			HttpCode: 500,
+			Response: fmt.Sprintf("Failed to unmarshal wasm response: %v", err),
+		}
 	}
 
-	//fmt.Printf("[%s] ------ END ------\n", time.Now())
-
+	exec.log.Info("Ending WASM function execution", "time", time.Now().Unix())
 	return wasmResp
 }
 

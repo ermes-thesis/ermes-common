@@ -2,6 +2,7 @@ package wasm
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 
@@ -56,7 +57,11 @@ func (p *WazeroExecutorPool) RegisterHostFns(fns map[string]any) error {
 	}
 
 	_, err := builder.Instantiate(p.ctx)
-	return err
+	if err != nil {
+		p.log.Error("RegisterHostFns failed", "fns", fmt.Sprintf("%+v", fns), "error", err)
+		return fmt.Errorf("failed to register host functions: %v", err)
+	}
+	return nil
 }
 
 func (p *WazeroExecutorPool) Close() {

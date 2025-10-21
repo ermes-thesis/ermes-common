@@ -17,6 +17,7 @@ func createNewLogger(t testing.TB) *logger.Logger {
 		Level:     zerolog.InfoLevel,
 		Format:    "text",
 		AddSource: false,
+		Muted:     true,
 	})
 	require.NoError(t, err)
 	return log
