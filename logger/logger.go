@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -45,6 +46,9 @@ type LogFile struct {
 
 const levelSectionWidthWithColors = 16
 const levelSectionWidthWithoutColors = 7
+
+var projectRoot string
+var projectRootOnce sync.Once
 
 func makeRotatingFileWriter(logPath string) io.WriteCloser {
 	return &lumberjack.Logger{
@@ -110,6 +114,30 @@ func NewLogger(config Config) (*Logger, error) {
 	// If requested add the Caller file:line
 	if config.AddSource {
 		base = base.CallerWithSkipFrameCount(3)
+		zerolog.CallerMarshalFunc = func(pc uintptr, file string, line int) string {
+			projectRootOnce.Do(func() {
+				dir := filepath.Dir(file)
+				for {
+					if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+						projectRoot = dir
+						return
+					}
+					parent := filepath.Dir(dir)
+					if parent == dir {
+						break
+					}
+					dir = parent
+				}
+			})
+
+			if projectRoot != "" {
+				if rel, err := filepath.Rel(projectRoot, file); err == nil {
+					return fmt.Sprintf("%s:%d", rel, line)
+				}
+			}
+
+			return fmt.Sprintf("%s:%d", filepath.Base(file), line)
+		}
 	}
 
 	// Create the logger
