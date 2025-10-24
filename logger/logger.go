@@ -116,17 +116,16 @@ func NewLogger(config Config) (*Logger, error) {
 		base = base.CallerWithSkipFrameCount(3)
 		zerolog.CallerMarshalFunc = func(pc uintptr, file string, line int) string {
 			projectRootOnce.Do(func() {
-				dir := filepath.Dir(file)
-				for {
-					if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-						projectRoot = dir
+				// Find "ermes-" prefix in the path
+				parts := strings.Split(filepath.ToSlash(file), "/")
+				for i, part := range parts {
+					if strings.HasPrefix(part, "ermes-") {
+						projectRoot = filepath.Join(parts[:i+1]...)
+						if !filepath.IsAbs(projectRoot) {
+							projectRoot = string(filepath.Separator) + projectRoot
+						}
 						return
 					}
-					parent := filepath.Dir(dir)
-					if parent == dir {
-						break
-					}
-					dir = parent
 				}
 			})
 
