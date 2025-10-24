@@ -36,6 +36,8 @@ type CollectionUpdate struct {
 	CollectionGroups map[string]bool
 	DeletedRecords   []string
 	Deleted          bool
+	Recreated        bool
+	Geolocation      string
 }
 
 type FunctionCachedUpdates struct {
