@@ -13,6 +13,16 @@ const PublicGroup = "ALL"
 // It determines the guarantees provided when reading or writing data.
 type Consistency uint8
 
+func (c Consistency) String() string {
+	switch c {
+	case SequentialConsistent:
+		return "sequential"
+	case EventualConsistent:
+		return "eventual"
+	}
+	return "unknown"
+}
+
 const (
 	// SequentialConsistent ensures sequential reads and writes.
 	// Writes are visible immediately and consistently across all nodes,
