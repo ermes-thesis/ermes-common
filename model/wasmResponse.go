@@ -1,5 +1,7 @@
 package model
 
+import "fmt"
+
 type GroupsCache struct {
 	Groups        map[string]bool
 	UsersInGroups map[string]map[string]bool
@@ -49,4 +51,8 @@ type WasmResponse struct {
 	HttpCode     int                    `json:"http_code"`
 	Response     any                    `json:"response"`
 	CacheUpdates *FunctionCachedUpdates `json:"cache_updates,omitempty"`
+}
+
+func (r *WasmResponse) String() string {
+	return fmt.Sprintf("{HttpCode:%d Response:%v CacheUpdates%+v}", r.HttpCode, r.Response, *r.CacheUpdates)
 }
