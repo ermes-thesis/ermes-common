@@ -217,7 +217,7 @@ func (c UnsupportedCondition) ToRedisQuery() (string, error) {
 	panic("implement me")
 }
 
-func (c UnsupportedCondition) ReplacePlaceholder(vars map[string]any) error {
+func (c UnsupportedCondition) ReplacePlaceholder(vars map[string]any) (Condition, error) {
 	panic("implement me")
 }
 

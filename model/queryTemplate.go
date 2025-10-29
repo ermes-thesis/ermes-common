@@ -62,14 +62,19 @@ func (q *QueryTemplate) ToRedisSearchCommand() (string, error) {
 	return query, nil
 }
 
-func (q *QueryTemplate) ReplacePlaceholder(vars map[string]any) error {
+func (q *QueryTemplate) ReplacePlaceholder(vars map[string]any) (*QueryTemplate, error) {
 	if q.Where != nil && q.Where.Condition != nil {
-		return q.Where.Condition.ReplacePlaceholder(vars)
+		cond, err := q.Where.Condition.ReplacePlaceholder(vars)
+		return &QueryTemplate{
+			Select: q.Select,
+			As:     q.As,
+			Where:  &ConditionWrapper{Condition: cond},
+		}, err
 	}
-	return nil
+	return q, nil
 }
 
-func (q *QueryTemplate) ReplacePlaceholderFromStrings(vars map[string]string) error {
+func (q *QueryTemplate) ReplacePlaceholderFromStrings(vars map[string]string) (*QueryTemplate, error) {
 	anyVars := make(map[string]any, len(vars))
 	for k, v := range vars {
 		anyVars[k] = v
@@ -80,7 +85,7 @@ func (q *QueryTemplate) ReplacePlaceholderFromStrings(vars map[string]string) er
 type Condition interface {
 	Validate() error
 	ToRedisQuery() (string, error)
-	ReplacePlaceholder(vars map[string]any) error
+	ReplacePlaceholder(vars map[string]any) (Condition, error)
 }
 
 type AndCondition struct {
@@ -111,13 +116,16 @@ func (a *AndCondition) ToRedisQuery() (string, error) {
 	return strings.Join(parts, " "), nil
 }
 
-func (a *AndCondition) ReplacePlaceholder(vars map[string]any) error {
+func (a *AndCondition) ReplacePlaceholder(vars map[string]any) (Condition, error) {
+	andCond := &AndCondition{}
 	for _, c := range a.Conditions {
-		if err := c.ReplacePlaceholder(vars); err != nil {
-			return err
+		cond, err := c.ReplacePlaceholder(vars)
+		if err != nil {
+			return nil, err
 		}
+		andCond.Conditions = append(andCond.Conditions, cond)
 	}
-	return nil
+	return andCond, nil
 }
 
 func (a *AndCondition) String() string {
@@ -152,13 +160,16 @@ func (o *OrCondition) ToRedisQuery() (string, error) {
 	return fmt.Sprintf("(|%s)", strings.Join(parts, " ")), nil
 }
 
-func (o *OrCondition) ReplacePlaceholder(vars map[string]any) error {
+func (o *OrCondition) ReplacePlaceholder(vars map[string]any) (Condition, error) {
+	orCond := &OrCondition{}
 	for _, c := range o.Conditions {
-		if err := c.ReplacePlaceholder(vars); err != nil {
-			return err
+		cond, err := c.ReplacePlaceholder(vars)
+		if err != nil {
+			return nil, err
 		}
+		orCond.Conditions = append(orCond.Conditions, cond)
 	}
-	return nil
+	return orCond, nil
 }
 
 func (o *OrCondition) String() string {
@@ -184,11 +195,12 @@ func (n *NotCondition) ToRedisQuery() (string, error) {
 	return "-" + part, nil
 }
 
-func (n *NotCondition) ReplacePlaceholder(vars map[string]any) error {
+func (n *NotCondition) ReplacePlaceholder(vars map[string]any) (Condition, error) {
 	if n.Condition != nil {
-		return n.Condition.ReplacePlaceholder(vars)
+		cond, err := n.Condition.ReplacePlaceholder(vars)
+		return &NotCondition{Condition: cond}, err
 	}
-	return nil
+	return n, nil
 }
 
 func (n *NotCondition) String() string {
@@ -232,15 +244,18 @@ func (e *EqCondition) ToRedisQuery() (string, error) {
 	}
 }
 
-func (e *EqCondition) ReplacePlaceholder(vars map[string]any) error {
+func (e *EqCondition) ReplacePlaceholder(vars map[string]any) (Condition, error) {
 	if str, ok := e.Value.(string); ok {
 		val, err := replacePlaceholderOrError(str, vars)
 		if err != nil {
-			return fmt.Errorf("field %q: %w", e.Field, err)
+			return nil, fmt.Errorf("field %q: %w", e.Field, err)
 		}
-		e.Value = val
+		return &EqCondition{
+			Field: e.Field,
+			Value: val,
+		}, nil
 	}
-	return nil
+	return e, nil
 }
 
 func (e *EqCondition) String() string {
@@ -283,15 +298,18 @@ func (g *GtCondition) ToRedisQuery() (string, error) {
 		return "", fmt.Errorf("unsupported value type for gt: %T", v)
 	}
 }
-func (g *GtCondition) ReplacePlaceholder(vars map[string]any) error {
+func (g *GtCondition) ReplacePlaceholder(vars map[string]any) (Condition, error) {
 	if str, ok := g.Value.(string); ok {
 		val, err := replacePlaceholderOrError(str, vars)
 		if err != nil {
-			return fmt.Errorf("field %q: %w", g.Field, err)
+			return nil, fmt.Errorf("field %q: %w", g.Field, err)
 		}
-		g.Value = val
+		return &GtCondition{
+			Field: g.Field,
+			Value: val,
+		}, nil
 	}
-	return nil
+	return g, nil
 }
 
 func (g *GtCondition) String() string {
