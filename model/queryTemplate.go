@@ -120,6 +120,10 @@ func (a *AndCondition) ReplacePlaceholder(vars map[string]any) error {
 	return nil
 }
 
+func (a *AndCondition) String() string {
+	return fmt.Sprintf("AndCondition{Conditions:%+v}", a.Conditions)
+}
+
 type OrCondition struct {
 	Conditions []Condition `json:"OR"`
 }
@@ -157,6 +161,10 @@ func (o *OrCondition) ReplacePlaceholder(vars map[string]any) error {
 	return nil
 }
 
+func (o *OrCondition) String() string {
+	return fmt.Sprintf("OrCondition{Conditions:%+v}", o.Conditions)
+}
+
 type NotCondition struct {
 	Condition Condition `json:"NOT"`
 }
@@ -181,6 +189,10 @@ func (n *NotCondition) ReplacePlaceholder(vars map[string]any) error {
 		return n.Condition.ReplacePlaceholder(vars)
 	}
 	return nil
+}
+
+func (n *NotCondition) String() string {
+	return fmt.Sprintf("NotCondition{Condition:%+v}", n.Condition)
 }
 
 type EqCondition struct {
@@ -231,6 +243,10 @@ func (e *EqCondition) ReplacePlaceholder(vars map[string]any) error {
 	return nil
 }
 
+func (e *EqCondition) String() string {
+	return fmt.Sprintf("EqCondition{Field:%+v Value:%+v}", e.Field, e.Value)
+}
+
 type GtCondition struct {
 	Field string `json:"field"`
 	Value any    `json:"gt"`
@@ -276,6 +292,10 @@ func (g *GtCondition) ReplacePlaceholder(vars map[string]any) error {
 		g.Value = val
 	}
 	return nil
+}
+
+func (g *GtCondition) String() string {
+	return fmt.Sprintf("GtCondition{Field:%+v Value:%+v}", g.Field, g.Value)
 }
 
 type rawCondition struct {
@@ -386,6 +406,10 @@ func (cw *ConditionWrapper) MarshalJSON() ([]byte, error) {
 	default:
 		return nil, errors.New("unsupported condition type")
 	}
+}
+
+func (cw *ConditionWrapper) String() string {
+	return fmt.Sprintf("%+v", cw.Condition)
 }
 
 func replacePlaceholderOrError(s string, vars map[string]any) (any, error) {

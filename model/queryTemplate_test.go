@@ -3,10 +3,47 @@ package model
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestCustomPrint(t *testing.T) {
+	templ := QueryTemplate{
+		Select: "ALL",
+		As:     "test",
+		Where: &ConditionWrapper{
+			Condition: &AndCondition{
+				Conditions: []Condition{
+					&EqCondition{
+						Field: "type",
+						Value: "sensor",
+					},
+					&NotCondition{
+						Condition: &GtCondition{
+							Field: "test",
+							Value: "test_value",
+						},
+					},
+					&OrCondition{
+						Conditions: []Condition{
+							&GtCondition{
+								Field: "pippo",
+								Value: "pluto",
+							},
+							&EqCondition{
+								Field: "paperino",
+								Value: "qui",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	fmt.Printf("%+v", templ)
+}
 
 func TestQueryTemplateValidate(t *testing.T) {
 	tests := []struct {
