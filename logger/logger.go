@@ -29,19 +29,19 @@ type Logger struct {
 }
 
 type Config struct {
-	Level         zerolog.Level
-	Format        string // "text" or "json"
-	Output        *LogFile
-	StdoutEnabled bool
-	AddSource     bool
-	Colored       bool
-	Rolling       bool
-	Muted         bool
+	Level         zerolog.Level `yaml:"level"`
+	Format        string        `yaml:"format"` // "text" or "json"
+	Output        *LogFile      `yaml:"output"`
+	StdoutEnabled bool          `yaml:"stdoutEnabled"`
+	AddSource     bool          `yaml:"addSource"`
+	Colored       bool          `yaml:"colored"`
+	Rolling       bool          `yaml:"rolling"`
+	Muted         bool          `yaml:"muted"`
 }
 
 type LogFile struct {
-	LogDir      string
-	LogFileName string
+	LogDir      string `yaml:"logDir"`
+	LogFileName string `yaml:"logFileName"`
 }
 
 const levelSectionWidthWithColors = 16
