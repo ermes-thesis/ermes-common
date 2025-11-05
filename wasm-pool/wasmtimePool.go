@@ -12,7 +12,7 @@ type WasmtimeExecutorPool struct {
 	linker *wasmtime.Linker
 }
 
-func NewWasmtimeExecutorPool(poolSize int, log *logger.Logger) *WasmtimeExecutorPool {
+func NewWasmtimeExecutorPool(poolSize int, log logger.Logger) *WasmtimeExecutorPool {
 	cfg := wasmtime.NewConfig()
 	err := cfg.CacheConfigLoadDefault()
 	if err != nil {

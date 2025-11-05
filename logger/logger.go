@@ -15,17 +15,43 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
+type Logger interface {
+	Close() error
+	Debug(msg string, attrs ...any)
+	Debugf(format string, args ...any)
+	DebugfWith(format string, args []any, attrs ...any)
+	Info(msg string, attrs ...any)
+	Infof(format string, args ...any)
+	InfofWith(format string, args []any, attrs ...any)
+	Warn(msg string, attrs ...any)
+	Warnf(format string, args ...any)
+	WarnfWith(format string, args []any, attrs ...any)
+	Error(msg string, attrs ...any)
+	Errorf(format string, args ...any)
+	ErrorfErr(format string, args ...any) error
+	ErrorfWith(format string, args []any, attrs ...any)
+	ErrorfErrWith(format string, args []any, attrs ...any) error
+
+	Enabled(level zerolog.Level) bool
+	Mute()
+	Unmute()
+
+	With(args ...any) Logger
+	Component(name string) Logger
+	ComponentWithFile(name string) (Logger, error)
+}
+
 type outputEntry struct {
 	writer   diode.Writer
 	isStdout bool
 }
 
-type Logger struct {
+type Impl struct {
 	logger       zerolog.Logger
 	outputs      []outputEntry
 	config       Config
 	logFile      io.WriteCloser
-	childLoggers []*Logger
+	childLoggers []Logger
 }
 
 type Config struct {
@@ -60,7 +86,7 @@ func makeRotatingFileWriter(logPath string) io.WriteCloser {
 	}
 }
 
-func NewLogger(config Config) (*Logger, error) {
+func NewLogger(config Config) (Logger, error) {
 	var (
 		outputs []outputEntry
 		logFile io.WriteCloser
@@ -141,7 +167,7 @@ func NewLogger(config Config) (*Logger, error) {
 
 	// Create the logger
 	logger := base.Logger().Level(config.Level)
-	return &Logger{
+	return &Impl{
 		logger:  logger,
 		outputs: outputs,
 		config:  config,
@@ -218,7 +244,7 @@ func buildWriter(format string, out io.Writer, noColor bool) diode.Writer {
 	return buildConsoleWriter(out, noColor)
 }
 
-func (l *Logger) Close() error {
+func (l *Impl) Close() error {
 	for _, child := range l.childLoggers {
 		err := child.Close()
 		if err != nil {
@@ -242,37 +268,37 @@ func (l *Logger) Close() error {
 	return nil
 }
 
-func (l *Logger) Info(msg string, attrs ...any) {
+func (l *Impl) Info(msg string, attrs ...any) {
 	if !l.config.Muted {
 		l.logger.Info().Fields(attrs).Msg(msg)
 	}
 }
 
-func (l *Logger) Infof(format string, args ...interface{}) {
+func (l *Impl) Infof(format string, args ...interface{}) {
 	if !l.config.Muted {
 		l.logger.Info().Msg(fmt.Sprintf(format, args...))
 	}
 }
 
-func (l *Logger) InfofWith(format string, args []any, attrs ...any) {
+func (l *Impl) InfofWith(format string, args []any, attrs ...any) {
 	if !l.config.Muted {
 		l.logger.Info().Fields(attrs).Msgf(format, args...)
 	}
 }
 
-func (l *Logger) Error(msg string, attrs ...any) {
+func (l *Impl) Error(msg string, attrs ...any) {
 	if !l.config.Muted {
 		l.logger.Error().Fields(attrs).Msg(msg)
 	}
 }
 
-func (l *Logger) Errorf(format string, args ...interface{}) {
+func (l *Impl) Errorf(format string, args ...interface{}) {
 	if !l.config.Muted {
 		l.logger.Error().Msgf(format, args...)
 	}
 }
 
-func (l *Logger) ErrorfErr(format string, args ...interface{}) error {
+func (l *Impl) ErrorfErr(format string, args ...interface{}) error {
 	errStr := fmt.Sprintf(format, args...)
 	if !l.config.Muted {
 		l.logger.Error().Msg(errStr)
@@ -280,49 +306,49 @@ func (l *Logger) ErrorfErr(format string, args ...interface{}) error {
 	return errors.New(errStr)
 }
 
-func (l *Logger) Debug(msg string, attrs ...any) {
+func (l *Impl) Debug(msg string, attrs ...any) {
 	if !l.config.Muted {
 		l.logger.Debug().Fields(attrs).Msg(msg)
 	}
 }
 
-func (l *Logger) Debugf(format string, args ...interface{}) {
+func (l *Impl) Debugf(format string, args ...any) {
 	if !l.config.Muted {
 		l.logger.Debug().Msgf(format, args...)
 	}
 }
 
-func (l *Logger) Warnf(format string, args ...interface{}) {
+func (l *Impl) Warnf(format string, args ...any) {
 	if !l.config.Muted {
 		l.logger.Warn().Msgf(format, args...)
 	}
 }
 
-func (l *Logger) DebugfWith(format string, args []any, attrs ...any) {
+func (l *Impl) DebugfWith(format string, args []any, attrs ...any) {
 	if !l.config.Muted {
 		l.logger.Debug().Fields(attrs).Msgf(format, args...)
 	}
 }
 
-func (l *Logger) Warn(msg string, attrs ...any) {
+func (l *Impl) Warn(msg string, attrs ...any) {
 	if !l.config.Muted {
 		l.logger.Warn().Fields(attrs).Msg(msg)
 	}
 }
 
-func (l *Logger) WarnfWith(format string, args []any, attrs ...any) {
+func (l *Impl) WarnfWith(format string, args []any, attrs ...any) {
 	if !l.config.Muted {
 		l.logger.Warn().Fields(attrs).Msgf(format, args...)
 	}
 }
 
-func (l *Logger) ErrorfWith(format string, args []any, attrs ...any) {
+func (l *Impl) ErrorfWith(format string, args []any, attrs ...any) {
 	if !l.config.Muted {
 		l.logger.Error().Fields(attrs).Msgf(format, args...)
 	}
 }
 
-func (l *Logger) ErrorfErrWith(format string, args []any, attrs ...any) error {
+func (l *Impl) ErrorfErrWith(format string, args []any, attrs ...any) error {
 	errStr := fmt.Sprintf(format, args...)
 
 	if !l.config.Muted {
@@ -331,33 +357,33 @@ func (l *Logger) ErrorfErrWith(format string, args []any, attrs ...any) error {
 	return errors.New(errStr)
 }
 
-func (l *Logger) Enabled(level zerolog.Level) bool {
+func (l *Impl) Enabled(level zerolog.Level) bool {
 	return level >= l.logger.GetLevel()
 }
 
-func (l *Logger) Mute() {
+func (l *Impl) Mute() {
 	l.config.Muted = true
 }
 
-func (l *Logger) Unmute() {
+func (l *Impl) Unmute() {
 	l.config.Muted = false
 }
 
-func (l *Logger) With(args ...any) *Logger {
-	return &Logger{
+func (l *Impl) With(args ...any) Logger {
+	return &Impl{
 		logger: l.logger.With().Fields(args).Logger(),
 		config: l.config,
 	}
 }
 
-func (l *Logger) Component(name string) *Logger {
-	return &Logger{
+func (l *Impl) Component(name string) Logger {
+	return &Impl{
 		logger: l.logger.With().Str("component", name).Logger(),
 		config: l.config,
 	}
 }
 
-func (l *Logger) ComponentWithFile(name string) (*Logger, error) {
+func (l *Impl) ComponentWithFile(name string) (Logger, error) {
 	if l.config.Output == nil {
 		return nil, fmt.Errorf("cannot create separated log file for component %s: no base log file configured", name)
 	}
@@ -396,7 +422,7 @@ func (l *Logger) ComponentWithFile(name string) (*Logger, error) {
 	// Create the logger
 	logger := base.Logger().Level(l.config.Level)
 
-	childLogger := &Logger{
+	childLogger := &Impl{
 		logger: logger,
 		outputs: []outputEntry{
 			{

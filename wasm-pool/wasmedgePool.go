@@ -12,7 +12,7 @@ type WasmedgeExecutorPool struct {
 	*wasmExecutorPool
 }
 
-func NewWasmedgeExecutorPool(poolSize int, log *logger.Logger) *WasmedgeExecutorPool {
+func NewWasmedgeExecutorPool(poolSize int, log logger.Logger) *WasmedgeExecutorPool {
 	pool := &WasmedgeExecutorPool{
 		wasmExecutorPool: newWasmExecutorPool(poolSize, log),
 	}

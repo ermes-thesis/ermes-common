@@ -18,10 +18,10 @@ type WazeroExecutor struct {
 	runtime   wazero.Runtime
 	modConfig wazero.ModuleConfig
 	inUse     bool
-	log       *logger.Logger
+	log       logger.Logger
 }
 
-func NewWazeroExecutor(runtime wazero.Runtime, modConfig wazero.ModuleConfig, log *logger.Logger) *WazeroExecutor {
+func NewWazeroExecutor(runtime wazero.Runtime, modConfig wazero.ModuleConfig, log logger.Logger) *WazeroExecutor {
 	return &WazeroExecutor{
 		runtime:   runtime,
 		modConfig: modConfig,

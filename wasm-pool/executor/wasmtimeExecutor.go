@@ -14,10 +14,10 @@ import (
 type WasmtimeExecutor struct {
 	linker *wasmtime.Linker
 	inUse  bool
-	log    *logger.Logger
+	log    logger.Logger
 }
 
-func NewWasmtimeExecutor(linker *wasmtime.Linker, log *logger.Logger) *WasmtimeExecutor {
+func NewWasmtimeExecutor(linker *wasmtime.Linker, log logger.Logger) *WasmtimeExecutor {
 	return &WasmtimeExecutor{
 		linker: linker,
 		inUse:  false,

@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func createNewLogger(t testing.TB) *logger.Logger {
+func createNewLogger(t testing.TB) logger.Logger {
 	log, err := logger.NewLogger(logger.Config{
 		Level:     zerolog.InfoLevel,
 		Format:    "text",

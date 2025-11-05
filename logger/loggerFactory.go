@@ -15,7 +15,7 @@ func NewFactory(base Config) *Factory {
 	return &Factory{base: base}
 }
 
-func (f *Factory) New(logFileName string) (*Logger, error) {
+func (f *Factory) New(logFileName string) (Logger, error) {
 	cfg := f.base
 	cfg.Output = &LogFile{
 		LogDir:      f.base.Output.LogDir,
@@ -24,7 +24,7 @@ func (f *Factory) New(logFileName string) (*Logger, error) {
 	return NewLogger(cfg)
 }
 
-func (f *Factory) NewWith(logFileName string, opts func(*Config)) (*Logger, error) {
+func (f *Factory) NewWith(logFileName string, opts func(*Config)) (Logger, error) {
 	cfg := f.base
 	opts(&cfg)
 	cfg.Output = &LogFile{

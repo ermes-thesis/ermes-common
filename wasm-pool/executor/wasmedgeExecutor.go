@@ -15,10 +15,10 @@ import (
 type WasmedgeExecutor struct {
 	vm    *wasmedge.VM
 	inUse bool
-	log   *logger.Logger
+	log   logger.Logger
 }
 
-func NewWasmedgeExecutor(conf *wasmedge.Configure, log *logger.Logger) *WasmedgeExecutor {
+func NewWasmedgeExecutor(conf *wasmedge.Configure, log logger.Logger) *WasmedgeExecutor {
 	vm := wasmedge.NewVMWithConfig(conf)
 	wasi := vm.GetImportModule(wasmedge.WASI)
 

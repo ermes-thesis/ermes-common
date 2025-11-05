@@ -18,10 +18,10 @@ type wasmExecutorPool struct {
 	ExecutorPool
 	instances []executor.Executor
 	mu        sync.Mutex
-	log       *logger.Logger
+	log       logger.Logger
 }
 
-func newWasmExecutorPool(poolSize int, log *logger.Logger) *wasmExecutorPool {
+func newWasmExecutorPool(poolSize int, log logger.Logger) *wasmExecutorPool {
 	// optional: create sandbox dir
 	if err := os.MkdirAll("./sandbox", os.ModePerm); err != nil {
 		log.Errorf("Failed to create sandbox directory: %v", err)

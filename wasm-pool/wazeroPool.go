@@ -19,7 +19,7 @@ type WazeroExecutorPool struct {
 	ctx     context.Context
 }
 
-func NewWazeroExecutorPool(poolSize int, interpreter bool, ctx context.Context, log *logger.Logger) *WazeroExecutorPool {
+func NewWazeroExecutorPool(poolSize int, interpreter bool, ctx context.Context, log logger.Logger) *WazeroExecutorPool {
 	var config wazero.RuntimeConfig
 	if interpreter {
 		config = wazero.NewRuntimeConfigInterpreter()
