@@ -45,6 +45,6 @@ func (p *wasmExecutorPool) Acquire() executor.Executor {
 		}
 	}
 
-	p.log.Info("No more executors available. Retry later")
+	p.log.Warn("No more executors available. Retry later")
 	return nil
 }
