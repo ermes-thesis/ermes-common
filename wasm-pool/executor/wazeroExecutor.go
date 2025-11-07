@@ -36,8 +36,21 @@ func (exec *WazeroExecutor) Invoke(fnBuffer []byte, entrypoint string, input ...
 	ctx := context.Background()
 
 	exec.log.Debug("Instantiating module", "time", time.Now().Unix())
-	// Need to call CompileModule and InstantiateModule separately and not with the convenience method InstantiateWithConfig
-	// because the latter removes from the in-memory cache the compiled module, meaning that even if the module is
+	// Wazero API offers another convenience method called InstantiateWithConfig(). This method perform both the
+	// compilation and instantiation of a module, combining the effects of calling CompileModule() and InstantiateModule one after the other.
+	// The only difference, in behaviour, between calling InstantiateWithConfig() and invoking CompileModule() followed by
+	// InstantiateModule() separately is that InstantiateWithConfig, automatically closes the module when we close the instance.
+	// When the module is closed, Wazero removes the compiled binary from the in-memory cache. This lead to recompile multiple times the same binary even if it was
+	// executed before and for this reason we would like to use the two methods separately.
+	//
+	// Unfortunately, there is no way to remove a compiled binary from the Wazero's in-memory cache without closing the module.
+	// This is a problem for us, because in our system we will likely execute multiple time the same binaries, but as time goes on
+	// there could appear new binaries, meaning that the in-memory cache will progressively grow without the possibility to shrink it.
+	// For this reason we opted to close manually close the module anyway at the end of the Invoke() execution (meaning that the next time
+	// the binary will be recompiled again)
+	//
+	// A solution to this problem would be to implement a custom LRU cache that allow us to keep track of the different modules used over
+	// time and call Close() on the modules used least recently, but we decided not to implement a custom cache for now
 	compiledMod, err := runtime.CompileModule(ctx, fnBuffer)
 	if err != nil {
 		exec.log.Error("Failed to compile module", "error", err)
