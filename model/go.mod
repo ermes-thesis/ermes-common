@@ -6,6 +6,7 @@ toolchain go1.24.4
 
 require (
 	github.com/ermes-thesis/ermes-common/utils v0.0.0-00010101000000-000000000000
+	github.com/mitchellh/hashstructure/v2 v2.0.2
 	github.com/stretchr/testify v1.11.1
 )
 

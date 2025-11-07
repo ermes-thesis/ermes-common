@@ -91,3 +91,8 @@ func FromMap(metadataMap map[string]string) (*Metadata, error) {
 	}
 	return metadata, nil
 }
+
+type CollectionInfo struct {
+	Id       string
+	Metadata Metadata
+}
