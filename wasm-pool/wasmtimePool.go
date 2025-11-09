@@ -12,11 +12,15 @@ type WasmtimeExecutorPool struct {
 	linker *wasmtime.Linker
 }
 
-func NewWasmtimeExecutorPool(poolSize int, log logger.Logger) *WasmtimeExecutorPool {
+func NewWasmtimeExecutorPool(poolSize int, withCache bool, log logger.Logger) *WasmtimeExecutorPool {
 	cfg := wasmtime.NewConfig()
-	err := cfg.CacheConfigLoadDefault()
-	if err != nil {
-		log.Errorf("Failed to load Wasmtime cache config: %v", err)
+
+	var err error
+	if withCache {
+		err = cfg.CacheConfigLoadDefault()
+		if err != nil {
+			log.Errorf("Failed to load Wasmtime cache config: %v", err)
+		}
 	}
 
 	engine := wasmtime.NewEngineWithConfig(cfg)

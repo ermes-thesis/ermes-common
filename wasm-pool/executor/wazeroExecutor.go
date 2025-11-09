@@ -18,14 +18,16 @@ type WazeroExecutor struct {
 	runtime   wazero.Runtime
 	modConfig wazero.ModuleConfig
 	inUse     bool
+	withCache bool
 	log       logger.Logger
 }
 
-func NewWazeroExecutor(runtime wazero.Runtime, modConfig wazero.ModuleConfig, log logger.Logger) *WazeroExecutor {
+func NewWazeroExecutor(runtime wazero.Runtime, modConfig wazero.ModuleConfig, withCache bool, log logger.Logger) *WazeroExecutor {
 	return &WazeroExecutor{
 		runtime:   runtime,
 		modConfig: modConfig,
 		inUse:     false,
+		withCache: withCache,
 		log:       log,
 	}
 }
@@ -71,7 +73,9 @@ func (exec *WazeroExecutor) Invoke(fnBuffer []byte, entrypoint string, input ...
 	// If we close the compiled module at the end of the execution, it is removed from the in-memory cache and
 	// subsequent calls need to recompile the module. This is suboptimal, but it avoids to make the wazero's
 	// cache grow indefinitely
-	defer compiledMod.Close(ctx)
+	if !exec.withCache {
+		defer compiledMod.Close(ctx)
+	}
 	defer instance.Close(ctx)
 
 	exec.log.Debug("Calling func _initialize", "time", time.Now().Unix())

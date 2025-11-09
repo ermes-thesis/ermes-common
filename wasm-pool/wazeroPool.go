@@ -19,7 +19,7 @@ type WazeroExecutorPool struct {
 	ctx     context.Context
 }
 
-func NewWazeroExecutorPool(poolSize int, interpreter bool, ctx context.Context, log logger.Logger) *WazeroExecutorPool {
+func NewWazeroExecutorPool(poolSize int, interpreter bool, withCache bool, ctx context.Context, log logger.Logger) *WazeroExecutorPool {
 	var config wazero.RuntimeConfig
 	if interpreter {
 		config = wazero.NewRuntimeConfigInterpreter()
@@ -44,7 +44,7 @@ func NewWazeroExecutorPool(poolSize int, interpreter bool, ctx context.Context, 
 	}
 
 	for i := 0; i < poolSize; i++ {
-		pool.instances[i] = executor.NewWazeroExecutor(runtime, modConf, log)
+		pool.instances[i] = executor.NewWazeroExecutor(runtime, modConf, withCache, log)
 	}
 	return pool
 }
