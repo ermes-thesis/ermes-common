@@ -14,13 +14,15 @@ import (
 type WasmtimeExecutor struct {
 	linker *wasmtime.Linker
 	inUse  bool
+	isAot  bool
 	log    logger.Logger
 }
 
-func NewWasmtimeExecutor(linker *wasmtime.Linker, log logger.Logger) *WasmtimeExecutor {
+func NewWasmtimeExecutor(linker *wasmtime.Linker, isAot bool, log logger.Logger) *WasmtimeExecutor {
 	return &WasmtimeExecutor{
 		linker: linker,
 		inUse:  false,
+		isAot:  isAot,
 		log:    log,
 	}
 }
@@ -50,12 +52,24 @@ func (exec *WasmtimeExecutor) Invoke(fnBuffer []byte, entrypoint string, input .
 	wasiConfig.Close()
 
 	exec.log.Debug("Loading WASM module", "time", time.Now().Unix())
-	module, err := wasmtime.NewModule(linker.Engine, fnBuffer)
-	if err != nil {
-		exec.log.Error("Failed to load wasm file", "error", err)
-		return model.WasmResponse{
-			HttpCode: 500,
-			Response: fmt.Sprintf("failed to load wasm file: %v", err),
+	var module *wasmtime.Module
+	if exec.isAot {
+		module, err = wasmtime.NewModuleDeserialize(linker.Engine, fnBuffer)
+		if err != nil {
+			exec.log.Error("Failed to load wasm file", "error", err)
+			return model.WasmResponse{
+				HttpCode: 500,
+				Response: fmt.Sprintf("failed to load wasm file: %v", err),
+			}
+		}
+	} else {
+		module, err = wasmtime.NewModule(linker.Engine, fnBuffer)
+		if err != nil {
+			exec.log.Error("Failed to load wasm file", "error", err)
+			return model.WasmResponse{
+				HttpCode: 500,
+				Response: fmt.Sprintf("failed to load wasm file: %v", err),
+			}
 		}
 	}
 

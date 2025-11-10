@@ -12,7 +12,7 @@ type WasmtimeExecutorPool struct {
 	linker *wasmtime.Linker
 }
 
-func NewWasmtimeExecutorPool(poolSize int, withCache bool, log logger.Logger) *WasmtimeExecutorPool {
+func NewWasmtimeExecutorPool(poolSize int, withCache bool, isAot bool, log logger.Logger) *WasmtimeExecutorPool {
 	cfg := wasmtime.NewConfig()
 
 	var err error
@@ -38,7 +38,7 @@ func NewWasmtimeExecutorPool(poolSize int, withCache bool, log logger.Logger) *W
 	}
 
 	for i := 0; i < poolSize; i++ {
-		pool.instances[i] = executor.NewWasmtimeExecutor(linker, log)
+		pool.instances[i] = executor.NewWasmtimeExecutor(linker, isAot, log)
 	}
 
 	return pool

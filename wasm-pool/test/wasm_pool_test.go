@@ -44,7 +44,7 @@ func TestWasmedgePool(t *testing.T) {
 }
 
 func TestWasmtimePool(t *testing.T) {
-	pool := wasm.NewWasmtimeExecutorPool(10, false, createNewLogger(t))
+	pool := wasm.NewWasmtimeExecutorPool(10, false, false, createNewLogger(t))
 	defer pool.Close()
 
 	wasmBuffer, err := os.ReadFile("auth_function.wasm")
@@ -106,7 +106,7 @@ func BenchmarkWasmedgePool(b *testing.B) {
 }
 
 func BenchmarkWasmtimePool(b *testing.B) {
-	pool := wasm.NewWasmtimeExecutorPool(10, false, createNewLogger(b))
+	pool := wasm.NewWasmtimeExecutorPool(10, false, false, createNewLogger(b))
 	defer pool.Close()
 
 	wasmBuffer, err := os.ReadFile("auth_function.wasm")
