@@ -198,6 +198,8 @@ func (exec *WasmtimeExecutor) Invoke(fnBuffer []byte, entrypoint string, input .
 	}
 
 	exec.log.Info("Ending WASM function execution", "time", time.Now().Unix())
+	module.Close()
+	store.Close()
 	return wasmResp
 }
 
