@@ -184,6 +184,7 @@ func (exec *WasmtimeExecutor) Invoke(fnBuffer []byte, entrypoint string, input .
 		}
 	}
 
+	module.Close()
 	store.Close()
 
 	exec.log.Debug("Unmarshalling response", "time", time.Now().Unix())
@@ -198,8 +199,6 @@ func (exec *WasmtimeExecutor) Invoke(fnBuffer []byte, entrypoint string, input .
 	}
 
 	exec.log.Info("Ending WASM function execution", "time", time.Now().Unix())
-	module.Close()
-	store.Close()
 	return wasmResp
 }
 
