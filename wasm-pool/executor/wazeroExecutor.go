@@ -5,9 +5,11 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"github.com/ermes-thesis/ermes-common/logger"
 	"log"
 	"time"
+
+	"github.com/ermes-thesis/ermes-common/logger"
+	"github.com/google/uuid"
 
 	"github.com/ermes-thesis/ermes-common/model"
 	"github.com/tetratelabs/wazero"
@@ -61,7 +63,7 @@ func (exec *WazeroExecutor) Invoke(fnBuffer []byte, entrypoint string, input ...
 			Response: fmt.Sprintf("Failed to compile module: %v", err),
 		}
 	}
-	instance, err := runtime.InstantiateModule(ctx, compiledMod, exec.modConfig)
+	instance, err := runtime.InstantiateModule(ctx, compiledMod, exec.modConfig.WithName(uuid.NewString()))
 	if err != nil {
 		exec.log.Error("Failed to create instance", "error", err)
 		return model.WasmResponse{
