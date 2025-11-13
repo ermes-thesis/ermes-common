@@ -8,15 +8,17 @@ require (
 	github.com/bytecodealliance/wasmtime-go/v37 v37.0.0
 	github.com/ermes-thesis/ermes-common/logger v0.0.0-00010101000000-000000000000
 	github.com/ermes-thesis/ermes-common/model v0.0.0-00010101000000-000000000000
+	github.com/google/uuid v1.6.0
 	github.com/rs/zerolog v1.34.0
 	github.com/second-state/WasmEdge-go v0.14.0
 	github.com/stretchr/testify v1.11.1
-	github.com/tetratelabs/wazero v1.10.0
+	github.com/tetratelabs/wazero v1.10.1
 )
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/ermes-thesis/ermes-common/utils v0.0.0-00010101000000-000000000000 // indirect
+	github.com/kr/text v0.2.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mitchellh/hashstructure/v2 v2.0.2 // indirect
@@ -25,6 +27,8 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/tetratelabs/wazero => ../../wazero
 
 replace github.com/ermes-thesis/ermes-common/model => ../model
 
