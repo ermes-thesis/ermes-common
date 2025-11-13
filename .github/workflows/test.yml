@@ -15,6 +15,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          path: 'ermes-common'
+
+      - name: Checkout wazero
+        uses: actions/checkout@v4
+        with:
+          repository: 'ermes-thesis/wazero'
+          path: 'wazero'
 
       - name: Install WasmEdge
         run: curl -sSf https://raw.githubusercontent.com/WasmEdge/WasmEdge/master/utils/install.sh | sudo bash -s -- -p /usr/local
@@ -32,14 +40,16 @@ jobs:
         run: go install github.com/ctrf-io/go-ctrf-json-reporter/cmd/go-ctrf-json-reporter@latest
 
       - name: Run tests
-        run: go list -f '{{.Dir}}' -m | xargs -I {} go test -json {}/... --tags test | go-ctrf-json-reporter -output ctrf-report.json -v
+        run: |
+          cd ermes-common
+          go list -f '{{.Dir}}' -m | xargs -I {} go test -json {}/... --tags test | go-ctrf-json-reporter -output ctrf-report.json -v
 
       - name: Publish Test Report
         uses: ctrf-io/github-test-reporter@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          report-path: './ctrf-report.json'
+          report-path: 'ermes-common/ctrf-report.json'
           pull-request: true
         #          status-check: true
         #          status-check-name: 'Test Reporter Results'
