@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/ermes-thesis/ermes-common/logger"
 	"github.com/ermes-thesis/ermes-common/wasm-pool"
@@ -83,6 +85,70 @@ func TestWazeroPool(t *testing.T) {
 	}
 }
 
+func TestWasmedgePoolConcurrent(t *testing.T) {
+	pool := wasm.NewWasmedgeExecutorPool(20, createNewLogger(t))
+	defer pool.Close()
+
+	runConcurrentTest(t, pool)
+}
+
+func TestWasmtimePoolConcurrent(t *testing.T) {
+	pool := wasm.NewWasmtimeExecutorPool(20, false, false, createNewLogger(t))
+	defer pool.Close()
+
+	runConcurrentTest(t, pool)
+}
+
+func TestWasmtimeWithCachePoolConcurrent(t *testing.T) {
+	pool := wasm.NewWasmtimeExecutorPool(20, true, false, createNewLogger(t))
+	defer pool.Close()
+
+	runConcurrentTest(t, pool)
+}
+
+func TestWazeroPoolConcurrent(t *testing.T) {
+	pool := wasm.NewWazeroExecutorPool(20, false, false, context.Background(), createNewLogger(t))
+	defer pool.Close()
+
+	runConcurrentTest(t, pool)
+}
+
+func TestWazeroWithCachePoolConcurrent(t *testing.T) {
+	pool := wasm.NewWazeroExecutorPool(20, false, true, context.Background(), createNewLogger(t))
+	defer pool.Close()
+
+	runConcurrentTest(t, pool)
+}
+
+func runConcurrentTest(t *testing.T, pool wasm.ExecutorPool) {
+	wasmBuffer, err := os.ReadFile("auth_function.wasm")
+	if err != nil {
+		t.Fatalf("failed to read wasm file: %v", err)
+	}
+
+	wg := sync.WaitGroup{}
+	wg.Add(500)
+	for i := 0; i < 500; i++ {
+		go func() {
+			defer wg.Done()
+			executor := pool.Acquire()
+			for executor == nil {
+				time.Sleep(time.Millisecond * 10)
+				executor = pool.Acquire()
+			}
+			defer executor.Release()
+
+			resp := executor.Invoke(wasmBuffer, "authEntry", []byte("token"))
+			fmt.Println("Auth function:", resp.Response, resp.HttpCode)
+
+			if resp.HttpCode != 200 {
+				t.Fatalf("invoke function failed: %s", resp.Response)
+			}
+		}()
+	}
+	wg.Wait()
+
+}
 func BenchmarkWasmedgePool(b *testing.B) {
 	pool := wasm.NewWasmedgeExecutorPool(10, createNewLogger(b))
 	defer pool.Close()
