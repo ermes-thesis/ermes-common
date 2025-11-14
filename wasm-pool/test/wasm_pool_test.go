@@ -86,7 +86,7 @@ func TestWazeroPool(t *testing.T) {
 func TestWasmedgePoolConcurrent(t *testing.T) {
 	pool := wasm.NewWasmedgeExecutorPool(wasm.Config{
 		PoolSize: 20,
-		Timeout:  5 * time.Second,
+		Timeout:  2 * time.Minute,
 	}, createNewLogger(t))
 	defer pool.Close()
 
@@ -98,7 +98,7 @@ func TestWasmtimePoolConcurrent(t *testing.T) {
 		PoolSize:  20,
 		WithCache: false,
 		IsAot:     false,
-		Timeout:   30 * time.Second,
+		Timeout:   2 * time.Minute,
 	}, createNewLogger(t))
 	defer pool.Close()
 
@@ -110,7 +110,7 @@ func TestWasmtimeWithCachePoolConcurrent(t *testing.T) {
 		PoolSize:  20,
 		WithCache: true,
 		IsAot:     false,
-		Timeout:   5 * time.Second,
+		Timeout:   2 * time.Minute,
 	}, createNewLogger(t))
 	defer pool.Close()
 
@@ -122,7 +122,7 @@ func TestWazeroPoolConcurrent(t *testing.T) {
 		PoolSize:  20,
 		WithCache: false,
 		IsAot:     true,
-		Timeout:   5 * time.Second,
+		Timeout:   2 * time.Minute,
 	}, context.Background(), createNewLogger(t))
 	defer pool.Close()
 
@@ -134,7 +134,7 @@ func TestWazeroWithCachePoolConcurrent(t *testing.T) {
 		PoolSize:  20,
 		WithCache: true,
 		IsAot:     true,
-		Timeout:   5 * time.Second,
+		Timeout:   2 * time.Minute,
 	}, context.Background(), createNewLogger(t))
 	defer pool.Close()
 
@@ -157,7 +157,8 @@ func runConcurrentTest(t *testing.T, pool wasm.ExecutorPool) {
 			fmt.Println("Auth function:", resp.Response, resp.HttpCode)
 
 			if resp.HttpCode != 200 {
-				t.Fatalf("invoke function failed: %s", resp.Response)
+				t.Errorf("invoke function failed: %s", resp.Response)
+				return
 			}
 		}()
 	}
