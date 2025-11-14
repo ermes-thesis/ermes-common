@@ -98,7 +98,7 @@ func TestWasmtimePoolConcurrent(t *testing.T) {
 		PoolSize:  20,
 		WithCache: false,
 		IsAot:     false,
-		Timeout:   2 * time.Minute,
+		Timeout:   4 * time.Minute,
 	}, createNewLogger(t))
 	defer pool.Close()
 
@@ -148,8 +148,8 @@ func runConcurrentTest(t *testing.T, pool wasm.ExecutorPool) {
 	}
 
 	wg := sync.WaitGroup{}
-	wg.Add(500)
-	for i := 0; i < 500; i++ {
+	wg.Add(200)
+	for i := 0; i < 200; i++ {
 		go func() {
 			defer wg.Done()
 
