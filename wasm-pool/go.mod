@@ -13,6 +13,7 @@ require (
 	github.com/second-state/WasmEdge-go v0.14.0
 	github.com/stretchr/testify v1.11.1
 	github.com/tetratelabs/wazero v1.10.1
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -25,7 +26,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 replace github.com/tetratelabs/wazero => ../../wazero

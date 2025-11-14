@@ -25,8 +25,15 @@ func createNewLogger(t testing.TB) logger.Logger {
 	return log
 }
 
+var cfg = wasm.Config{
+	PoolSize:  10,
+	WithCache: false,
+	IsAot:     false,
+	Timeout:   5 * time.Second,
+}
+
 func TestWasmedgePool(t *testing.T) {
-	pool := wasm.NewWasmedgeExecutorPool(10, createNewLogger(t))
+	pool := wasm.NewWasmedgeExecutorPool(cfg, createNewLogger(t))
 	defer pool.Close()
 
 	wasmBuffer, err := os.ReadFile("auth_function.wasm")
@@ -34,10 +41,7 @@ func TestWasmedgePool(t *testing.T) {
 		t.Fatalf("failed to read wasm file: %v", err)
 	}
 
-	executor := pool.Acquire()
-	defer executor.Release()
-
-	resp := executor.Invoke(wasmBuffer, "authEntry", []byte("token"))
+	resp := pool.Invoke(wasmBuffer, "authEntry", []byte("token"))
 	fmt.Println("Auth function:", resp.Response, resp.HttpCode)
 
 	if resp.HttpCode != 200 {
@@ -46,7 +50,7 @@ func TestWasmedgePool(t *testing.T) {
 }
 
 func TestWasmtimePool(t *testing.T) {
-	pool := wasm.NewWasmtimeExecutorPool(10, false, false, createNewLogger(t))
+	pool := wasm.NewWasmtimeExecutorPool(cfg, createNewLogger(t))
 	defer pool.Close()
 
 	wasmBuffer, err := os.ReadFile("auth_function.wasm")
@@ -54,10 +58,7 @@ func TestWasmtimePool(t *testing.T) {
 		t.Fatalf("failed to read wasm file: %v", err)
 	}
 
-	executor := pool.Acquire()
-	defer executor.Release()
-
-	resp := executor.Invoke(wasmBuffer, "authEntry", []byte("token"))
+	resp := pool.Invoke(wasmBuffer, "authEntry", []byte("token"))
 	fmt.Println("Auth function:", resp.Response, resp.HttpCode)
 
 	if resp.HttpCode != 200 {
@@ -66,7 +67,7 @@ func TestWasmtimePool(t *testing.T) {
 }
 
 func TestWazeroPool(t *testing.T) {
-	pool := wasm.NewWazeroExecutorPool(10, false, false, context.Background(), createNewLogger(t))
+	pool := wasm.NewWazeroExecutorPool(cfg, context.Background(), createNewLogger(t))
 	defer pool.Close()
 
 	wasmBuffer, err := os.ReadFile("auth_function.wasm")
@@ -74,10 +75,7 @@ func TestWazeroPool(t *testing.T) {
 		t.Fatalf("failed to read wasm file: %v", err)
 	}
 
-	executor := pool.Acquire()
-	defer executor.Release()
-
-	resp := executor.Invoke(wasmBuffer, "authEntry", []byte("token"))
+	resp := pool.Invoke(wasmBuffer, "authEntry", []byte("token"))
 	fmt.Println("Auth function:", resp.Response, resp.HttpCode)
 
 	if resp.HttpCode != 200 {
@@ -86,35 +84,58 @@ func TestWazeroPool(t *testing.T) {
 }
 
 func TestWasmedgePoolConcurrent(t *testing.T) {
-	pool := wasm.NewWasmedgeExecutorPool(20, createNewLogger(t))
+	pool := wasm.NewWasmedgeExecutorPool(wasm.Config{
+		PoolSize: 20,
+		Timeout:  5 * time.Second,
+	}, createNewLogger(t))
 	defer pool.Close()
 
 	runConcurrentTest(t, pool)
 }
 
 func TestWasmtimePoolConcurrent(t *testing.T) {
-	pool := wasm.NewWasmtimeExecutorPool(20, false, false, createNewLogger(t))
+	pool := wasm.NewWasmtimeExecutorPool(wasm.Config{
+		PoolSize:  20,
+		WithCache: false,
+		IsAot:     false,
+		Timeout:   30 * time.Second,
+	}, createNewLogger(t))
 	defer pool.Close()
 
 	runConcurrentTest(t, pool)
 }
 
 func TestWasmtimeWithCachePoolConcurrent(t *testing.T) {
-	pool := wasm.NewWasmtimeExecutorPool(20, true, false, createNewLogger(t))
+	pool := wasm.NewWasmtimeExecutorPool(wasm.Config{
+		PoolSize:  20,
+		WithCache: true,
+		IsAot:     false,
+		Timeout:   5 * time.Second,
+	}, createNewLogger(t))
 	defer pool.Close()
 
 	runConcurrentTest(t, pool)
 }
 
 func TestWazeroPoolConcurrent(t *testing.T) {
-	pool := wasm.NewWazeroExecutorPool(20, false, false, context.Background(), createNewLogger(t))
+	pool := wasm.NewWazeroExecutorPool(wasm.Config{
+		PoolSize:  20,
+		WithCache: false,
+		IsAot:     true,
+		Timeout:   5 * time.Second,
+	}, context.Background(), createNewLogger(t))
 	defer pool.Close()
 
 	runConcurrentTest(t, pool)
 }
 
 func TestWazeroWithCachePoolConcurrent(t *testing.T) {
-	pool := wasm.NewWazeroExecutorPool(20, false, true, context.Background(), createNewLogger(t))
+	pool := wasm.NewWazeroExecutorPool(wasm.Config{
+		PoolSize:  20,
+		WithCache: true,
+		IsAot:     true,
+		Timeout:   5 * time.Second,
+	}, context.Background(), createNewLogger(t))
 	defer pool.Close()
 
 	runConcurrentTest(t, pool)
@@ -131,14 +152,8 @@ func runConcurrentTest(t *testing.T, pool wasm.ExecutorPool) {
 	for i := 0; i < 500; i++ {
 		go func() {
 			defer wg.Done()
-			executor := pool.Acquire()
-			for executor == nil {
-				time.Sleep(time.Millisecond * 10)
-				executor = pool.Acquire()
-			}
-			defer executor.Release()
 
-			resp := executor.Invoke(wasmBuffer, "authEntry", []byte("token"))
+			resp := pool.Invoke(wasmBuffer, "authEntry", []byte("token"))
 			fmt.Println("Auth function:", resp.Response, resp.HttpCode)
 
 			if resp.HttpCode != 200 {
@@ -150,7 +165,7 @@ func runConcurrentTest(t *testing.T, pool wasm.ExecutorPool) {
 
 }
 func BenchmarkWasmedgePool(b *testing.B) {
-	pool := wasm.NewWasmedgeExecutorPool(10, createNewLogger(b))
+	pool := wasm.NewWasmedgeExecutorPool(cfg, createNewLogger(b))
 	defer pool.Close()
 
 	wasmBuffer, err := os.ReadFile("auth_function.wasm")
@@ -159,20 +174,18 @@ func BenchmarkWasmedgePool(b *testing.B) {
 	}
 
 	for b.Loop() {
-		executor := pool.Acquire()
 
-		resp := executor.Invoke(wasmBuffer, "authEntry", []byte("token"))
+		resp := pool.Invoke(wasmBuffer, "authEntry", []byte("token"))
 		fmt.Println("Auth function:", resp.Response, resp.HttpCode)
 
 		if resp.HttpCode != 200 {
 			b.Fatalf("invoke function failed: %s", resp.Response)
 		}
-		executor.Release()
 	}
 }
 
 func BenchmarkWasmtimePool(b *testing.B) {
-	pool := wasm.NewWasmtimeExecutorPool(10, false, false, createNewLogger(b))
+	pool := wasm.NewWasmtimeExecutorPool(cfg, createNewLogger(b))
 	defer pool.Close()
 
 	wasmBuffer, err := os.ReadFile("auth_function.wasm")
@@ -181,20 +194,18 @@ func BenchmarkWasmtimePool(b *testing.B) {
 	}
 
 	for b.Loop() {
-		executor := pool.Acquire()
 
-		resp := executor.Invoke(wasmBuffer, "authEntry", []byte("token"))
+		resp := pool.Invoke(wasmBuffer, "authEntry", []byte("token"))
 		fmt.Println("Auth function:", resp.Response, resp.HttpCode)
 
 		if resp.HttpCode != 200 {
 			b.Fatalf("invoke function failed: %s", resp.Response)
 		}
-		executor.Release()
 	}
 }
 
 func BenchmarkWazeroPool(b *testing.B) {
-	pool := wasm.NewWazeroExecutorPool(10, false, false, context.Background(), createNewLogger(b))
+	pool := wasm.NewWazeroExecutorPool(cfg, context.Background(), createNewLogger(b))
 	defer pool.Close()
 
 	wasmBuffer, err := os.ReadFile("auth_function.wasm")
@@ -203,14 +214,12 @@ func BenchmarkWazeroPool(b *testing.B) {
 	}
 
 	for b.Loop() {
-		executor := pool.Acquire()
 
-		resp := executor.Invoke(wasmBuffer, "authEntry", []byte("token"))
+		resp := pool.Invoke(wasmBuffer, "authEntry", []byte("token"))
 		fmt.Println("Auth function:", resp.Response, resp.HttpCode)
 
 		if resp.HttpCode != 200 {
 			b.Fatalf("invoke function failed: %s", resp.Response)
 		}
-		executor.Release()
 	}
 }
