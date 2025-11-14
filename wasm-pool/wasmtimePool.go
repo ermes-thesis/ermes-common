@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/bytecodealliance/wasmtime-go/v37"
@@ -20,6 +21,10 @@ type WasmtimeExecutorPool struct {
 }
 
 func NewWasmtimeExecutorPool(cfg Config, log logger.Logger) *WasmtimeExecutorPool {
+	if err := os.MkdirAll("./sandbox", os.ModePerm); err != nil {
+		log.Errorf("Failed to create sandbox directory: %v", err)
+	}
+
 	config := wasmtime.NewConfig()
 
 	var err error

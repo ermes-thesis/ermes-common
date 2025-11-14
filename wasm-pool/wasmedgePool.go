@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/ermes-thesis/ermes-common/logger"
@@ -19,6 +20,10 @@ type WasmedgeExecutorPool struct {
 }
 
 func NewWasmedgeExecutorPool(cfg Config, log logger.Logger) *WasmedgeExecutorPool {
+	if err := os.MkdirAll("./sandbox", os.ModePerm); err != nil {
+		log.Errorf("Failed to create sandbox directory: %v", err)
+	}
+
 	wasmedge.SetLogErrorLevel()
 
 	pool := &WasmedgeExecutorPool{

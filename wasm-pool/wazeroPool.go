@@ -29,6 +29,10 @@ type WazeroExecutorPool struct {
 }
 
 func NewWazeroExecutorPool(cfg Config, ctx context.Context, log logger.Logger) *WazeroExecutorPool {
+	if err := os.MkdirAll("./sandbox", os.ModePerm); err != nil {
+		log.Errorf("Failed to create sandbox directory: %v", err)
+	}
+
 	var config wazero.RuntimeConfig
 	if cfg.IsAot {
 		config = wazero.NewRuntimeConfig().WithCompilationCache(wazero.NewCompilationCache())
