@@ -13,19 +13,13 @@ type wasmedgeExecutor struct {
 	exec      *wasmedge.Executor
 }
 
-func newWasmedgeExecutor(log logger.Logger) *wasmedgeExecutor {
+func newWasmedgeExecutor(wasi *wasmedge.Module, log logger.Logger) *wasmedgeExecutor {
 	e := &wasmedgeExecutor{
 		store:     wasmedge.NewStore(),
 		loader:    wasmedge.NewLoader(),
 		validator: wasmedge.NewValidator(),
 		exec:      wasmedge.NewExecutor(),
 	}
-
-	wasi := wasmedge.NewWasiModule(
-		nil,
-		nil,
-		[]string{".:./sandbox"},
-	)
 
 	err := e.exec.RegisterImport(e.store, wasi)
 	if err != nil {

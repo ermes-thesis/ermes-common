@@ -13,6 +13,7 @@ import (
 )
 
 type WasmedgeExecutorPool struct {
+	wasi    *wasmedge.Module
 	hostFns *wasmedge.Module
 	workers chan *wasmedgeExecutor
 	timeout time.Duration
@@ -26,14 +27,21 @@ func NewWasmedgeExecutorPool(cfg Config, log logger.Logger) *WasmedgeExecutorPoo
 
 	wasmedge.SetLogErrorLevel()
 
+	wasi := wasmedge.NewWasiModule(
+		nil,
+		nil,
+		[]string{".:./sandbox"},
+	)
+
 	pool := &WasmedgeExecutorPool{
 		workers: make(chan *wasmedgeExecutor, cfg.PoolSize),
 		log:     log,
 		timeout: cfg.Timeout,
+		wasi:    wasi,
 	}
 
 	for i := 0; i < cfg.PoolSize; i++ {
-		pool.workers <- newWasmedgeExecutor(log)
+		pool.workers <- newWasmedgeExecutor(wasi, log)
 	}
 	return pool
 }
@@ -194,6 +202,7 @@ func (p *WasmedgeExecutorPool) Close() {
 	}
 	close(p.workers)
 
+	p.wasi.Release()
 	if p.hostFns != nil {
 		p.hostFns.Release()
 	}
