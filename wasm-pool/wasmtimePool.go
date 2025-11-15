@@ -66,7 +66,7 @@ func (p *WasmtimeExecutorPool) Invoke(fnBuffer []byte, entrypoint string, input 
 			p.workers <- worker
 		}()
 		return p.doInvoke(fnBuffer, entrypoint, input...)
-	case <-time.After(p.timeout):
+	case <-getTimeoutChannel(p.timeout):
 		p.log.Error("Local execution failed. The WASM pool was too busy and there weren't any WASM executor available")
 		return model.WasmResponse{
 			HttpCode: 500,

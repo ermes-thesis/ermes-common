@@ -2,6 +2,7 @@ package wasm
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/ermes-thesis/ermes-common/model"
 )
@@ -17,4 +18,13 @@ func buildErrorResponse(err error) model.WasmResponse {
 		HttpCode: 500,
 		Response: fmt.Sprintf("wasm execution error: %v", err),
 	}
+}
+
+func getTimeoutChannel(timeout time.Duration) <-chan time.Time {
+	var timeoutChan <-chan time.Time
+
+	if timeout > 0 {
+		timeoutChan = time.After(timeout)
+	}
+	return timeoutChan
 }
