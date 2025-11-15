@@ -10,13 +10,12 @@ import (
 
 	"github.com/ermes-thesis/ermes-common/logger"
 	"github.com/ermes-thesis/ermes-common/wasm-pool"
-	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 )
 
 func createNewLogger(t testing.TB) logger.Logger {
 	log, err := logger.NewLogger(logger.Config{
-		Level:     zerolog.InfoLevel,
+		Level:     logger.EvalLevel,
 		Format:    "text",
 		AddSource: false,
 		Muted:     true,

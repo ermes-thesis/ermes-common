@@ -31,6 +31,9 @@ type Logger interface {
 	ErrorfErr(format string, args ...any) error
 	ErrorfWith(format string, args []any, attrs ...any)
 	ErrorfErrWith(format string, args []any, attrs ...any) error
+	Eval(msg string, attrs ...any)
+	Evalf(format string, args ...any)
+	EvalfWith(format string, args []any, attrs ...any)
 
 	Enabled(level zerolog.Level) bool
 	Mute()
@@ -55,14 +58,14 @@ type Impl struct {
 }
 
 type Config struct {
-	Level         zerolog.Level `yaml:"level"`
-	Format        string        `yaml:"format"` // "text" or "json"
-	Output        *LogFile      `yaml:"output"`
-	StdoutEnabled bool          `yaml:"stdoutEnabled"`
-	AddSource     bool          `yaml:"addSource"`
-	Colored       bool          `yaml:"colored"`
-	Rolling       bool          `yaml:"rolling"`
-	Muted         bool          `yaml:"muted"`
+	Level         Level    `yaml:"level"`
+	Format        string   `yaml:"format"` // "text" or "json"
+	Output        *LogFile `yaml:"output"`
+	StdoutEnabled bool     `yaml:"stdoutEnabled"`
+	AddSource     bool     `yaml:"addSource"`
+	Colored       bool     `yaml:"colored"`
+	Rolling       bool     `yaml:"rolling"`
+	Muted         bool     `yaml:"muted"`
 }
 
 type LogFile struct {
@@ -166,22 +169,17 @@ func NewLogger(config Config) (Logger, error) {
 	}
 
 	// Create the logger
-	logger := base.Logger().Level(config.Level)
+	zLevel, err := parseToZerologLvl(config.Level)
+	if err != nil {
+		return nil, err
+	}
+	logger := base.Logger().Level(zLevel)
 	return &Impl{
 		logger:  logger,
 		outputs: outputs,
 		config:  config,
 		logFile: logFile,
 	}, nil
-}
-
-// colorize returns the string s wrapped in ANSI code c, unless disabled is true or c is 0.
-func colorize(s string, c int, disabled bool) string {
-	e := os.Getenv("NO_COLOR")
-	if disabled || e != "" || c == 0 {
-		return fmt.Sprintf("%s", s)
-	}
-	return fmt.Sprintf("\x1b[%dm%v\x1b[0m", c, s)
 }
 
 // buildConsoleWriter wraps the parameter writer into a zerolog.ConsoleWriter to
@@ -213,8 +211,8 @@ func buildConsoleWriter(out io.Writer, noColor bool) diode.Writer {
 		},
 		FormatLevel: func(levelStr any) string {
 			uppercaseLevel := strings.ToUpper(levelStr.(string))
-			level, _ := zerolog.ParseLevel(uppercaseLevel)
-			levelSection := colorize(fmt.Sprintf("[%s]", uppercaseLevel), zerolog.LevelColors[level], noColor)
+			level := parseLevel(uppercaseLevel)
+			levelSection := colorize(fmt.Sprintf("[%s]", uppercaseLevel), levelColors[level], noColor)
 			pad := levelSectionWidthWithColors - len(levelSection)
 			if noColor {
 				pad = levelSectionWidthWithoutColors - len(levelSection)
@@ -318,12 +316,6 @@ func (l *Impl) Debugf(format string, args ...any) {
 	}
 }
 
-func (l *Impl) Warnf(format string, args ...any) {
-	if !l.config.Muted {
-		l.logger.Warn().Msgf(format, args...)
-	}
-}
-
 func (l *Impl) DebugfWith(format string, args []any, attrs ...any) {
 	if !l.config.Muted {
 		l.logger.Debug().Fields(attrs).Msgf(format, args...)
@@ -333,6 +325,12 @@ func (l *Impl) DebugfWith(format string, args []any, attrs ...any) {
 func (l *Impl) Warn(msg string, attrs ...any) {
 	if !l.config.Muted {
 		l.logger.Warn().Fields(attrs).Msg(msg)
+	}
+}
+
+func (l *Impl) Warnf(format string, args ...any) {
+	if !l.config.Muted {
+		l.logger.Warn().Msgf(format, args...)
 	}
 }
 
@@ -355,6 +353,25 @@ func (l *Impl) ErrorfErrWith(format string, args []any, attrs ...any) error {
 		l.logger.Error().Fields(attrs).Msg(errStr)
 	}
 	return errors.New(errStr)
+}
+
+func (l *Impl) Eval(msg string, args ...any) {
+	if !l.config.Muted && l.Enabled(zerolog.WarnLevel) {
+		// Overwriting the WARN level with EVAL, but treating it still as a WARN
+		l.logger.Warn().Str(zerolog.LevelFieldName, "eval").Fields(args).Msg(msg)
+	}
+}
+
+func (l *Impl) Evalf(format string, args ...any) {
+	if !l.config.Muted && l.Enabled(zerolog.WarnLevel) {
+		l.logger.Warn().Str(zerolog.LevelFieldName, "eval").Msgf(format, args...)
+	}
+}
+
+func (l *Impl) EvalfWith(format string, args []any, attrs ...any) {
+	if !l.config.Muted && l.Enabled(zerolog.WarnLevel) {
+		l.logger.Warn().Str(zerolog.LevelFieldName, "eval").Fields(attrs).Msgf(format, args...)
+	}
 }
 
 func (l *Impl) Enabled(level zerolog.Level) bool {
@@ -420,7 +437,11 @@ func (l *Impl) ComponentWithFile(name string) (Logger, error) {
 	}
 
 	// Create the logger
-	logger := base.Logger().Level(l.config.Level)
+	zLevel, err := zerolog.ParseLevel(l.config.Format)
+	if err != nil {
+		return nil, err
+	}
+	logger := base.Logger().Level(zLevel)
 
 	childLogger := &Impl{
 		logger: logger,
