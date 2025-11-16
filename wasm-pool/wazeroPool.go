@@ -217,6 +217,11 @@ func (p *WazeroExecutorPool) RegisterHostFns(fns map[string]any) error {
 }
 
 func (p *WazeroExecutorPool) Close() {
+	for i := 0; i < cap(p.workers); i++ {
+		<-p.workers
+	}
+	close(p.workers)
+
 	err := p.runtime.Close(p.ctx)
 	if err != nil {
 		p.log.Errorf("Failed to close wazero runtime: %v", err)

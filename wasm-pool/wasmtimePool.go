@@ -203,15 +203,10 @@ func (p *WasmtimeExecutorPool) RegisterHostFns(fns map[string]any) error {
 }
 
 func (p *WasmtimeExecutorPool) Close() {
-	p.log.Info("Closing executor pool...")
-
-	totalWorkers := cap(p.workers)
-
-	for i := 0; i < totalWorkers; i++ {
+	for i := 0; i < cap(p.workers); i++ {
 		<-p.workers
 	}
 	close(p.workers)
 
 	p.linker.Close()
-	p.log.Info("Executor pool closed.")
 }
