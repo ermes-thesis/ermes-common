@@ -22,8 +22,6 @@ type WazeroExecutorPool struct {
 	ctx       context.Context
 	log       logger.Logger
 	workers   chan struct{}
-	stdOut    *os.File
-	stdErr    *os.File
 	withCache bool
 	timeout   time.Duration
 }
@@ -42,20 +40,7 @@ func NewWazeroExecutorPool(cfg Config, ctx context.Context, log logger.Logger) *
 
 	runtime := wazero.NewRuntimeWithConfig(ctx, config)
 
-	stdOut, err := os.OpenFile("./sandbox/stdout.txt", os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
-	if err != nil {
-		log.Errorf("Failed to open stdout file: %v", err)
-	}
-
-	stdErr, err := os.OpenFile("./sandbox/stdErr.txt", os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
-	if err != nil {
-		log.Errorf("Failed to open stderr file: %v", err)
-	}
-
 	modConf := wazero.NewModuleConfig().
-		WithFSConfig(wazero.NewFSConfig().WithDirMount("./sandbox", ".")).
-		WithStdout(stdOut).
-		WithStderr(stdErr).
 		WithSysNanosleep()
 
 	wasi_snapshot_preview1.MustInstantiate(ctx, runtime)
@@ -67,9 +52,9 @@ func NewWazeroExecutorPool(cfg Config, ctx context.Context, log logger.Logger) *
 		log:       log,
 		withCache: cfg.WithCache,
 		workers:   make(chan struct{}, cfg.PoolSize),
-		stdOut:    stdOut,
-		stdErr:    stdErr,
-		timeout:   cfg.Timeout,
+		//stdOut:    stdOut,
+		//stdErr:    stdErr,
+		timeout: cfg.Timeout,
 	}
 
 	for i := 0; i < cfg.PoolSize; i++ {
@@ -94,10 +79,10 @@ func (p *WazeroExecutorPool) Invoke(fnBuffer []byte, entrypoint string, input ..
 }
 
 func (p *WazeroExecutorPool) doInvoke(fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse {
-	p.log.Info("Starting WASM function execution", "time", time.Now().Unix())
+	p.log.Info("Starting WASM function execution")
 	runtime := p.runtime
 
-	p.log.Debug("Instantiating module", "time", time.Now().Unix())
+	p.log.Debug("Instantiating module")
 	// Wazero API offers another convenience method called InstantiateWithConfig(). This method perform both the
 	// compilation and instantiation of a module, combining the effects of calling CompileModule() and InstantiateModule one after the other.
 	// The only difference, in behaviour, between calling InstantiateWithConfig() and invoking CompileModule() followed by
@@ -130,7 +115,7 @@ func (p *WazeroExecutorPool) doInvoke(fnBuffer []byte, entrypoint string, input 
 	}
 	defer instance.Close(p.ctx)
 
-	p.log.Debug("Getting _initialize, malloc and free funcs", "time", time.Now().Unix())
+	p.log.Debug("Getting _initialize, malloc and free funcs")
 	initFunc := instance.ExportedFunction("_initialize")
 	mallocFunc := instance.ExportedFunction("malloc")
 	freeFunc := instance.ExportedFunction("free")
@@ -138,7 +123,7 @@ func (p *WazeroExecutorPool) doInvoke(fnBuffer []byte, entrypoint string, input 
 		return buildErrorResponse(p.log.ErrorfErrWith("module does not export _initialize/malloc/free; ensure your TinyGo build exports them: %v", []any{err}, "error", err))
 	}
 
-	p.log.Debug("Calling func _initialize", "time", time.Now().Unix())
+	p.log.Debug("Calling func _initialize")
 	_, err = initFunc.Call(p.ctx)
 	if err != nil {
 		return buildErrorResponse(p.log.ErrorfErrWith("failed to execute _initialize: %v", []any{err}, "error", err))
@@ -151,7 +136,7 @@ func (p *WazeroExecutorPool) doInvoke(fnBuffer []byte, entrypoint string, input 
 		inputData = append(inputData, arg...)
 	}
 
-	p.log.Debug("Calling malloc", "time", time.Now().Unix())
+	p.log.Debug("Calling malloc")
 	allocateResult, err := mallocFunc.Call(p.ctx, api.EncodeI32(int32(len(inputData))))
 	if err != nil {
 		return buildErrorResponse(p.log.ErrorfErrWith("failed to execute malloc: %v", []any{err}, "error", err))
@@ -159,7 +144,7 @@ func (p *WazeroExecutorPool) doInvoke(fnBuffer []byte, entrypoint string, input 
 
 	ptr := api.DecodeI32(allocateResult[0])
 
-	p.log.Debug("Writing memory", "time", time.Now().Unix())
+	p.log.Debug("Writing memory")
 	mem := instance.Memory()
 	if mem == nil {
 		return buildErrorResponse(p.log.ErrorfErrWith("Wasm instance does not export memory object: %v", []any{err}, "error", err))
@@ -177,14 +162,14 @@ func (p *WazeroExecutorPool) doInvoke(fnBuffer []byte, entrypoint string, input 
 		return buildErrorResponse(p.log.ErrorfErrWith("entrypoint function not found: %v", []any{err}, "error", err))
 	}
 
-	p.log.Debug("Running func", "time", time.Now().Unix())
+	p.log.Debug("Running func")
 	entryResult, err := entrypointFn.Call(p.ctx, entryArgs...)
 	if err != nil {
 		return buildErrorResponse(p.log.ErrorfErr("Failed execute entry function: %v", []any{err}, "error", err))
 	}
 	outputPointer := api.DecodeI32(entryResult[0])
 
-	p.log.Debug("Getting output", "time", time.Now().Unix())
+	p.log.Debug("Getting output")
 	outData, ok := mem.Read(uint32(outputPointer), 8)
 	if !ok {
 		return buildErrorResponse(p.log.ErrorfErrWith("Failed to reading WASM memory: %v", []any{err}, "error", err))
@@ -198,21 +183,21 @@ func (p *WazeroExecutorPool) doInvoke(fnBuffer []byte, entrypoint string, input 
 		return buildErrorResponse(p.log.ErrorfErrWith("Failed to reading WASM memory: %v", []any{err}, "error", err))
 	}
 
-	p.log.Debug("Freeing memory", "time", time.Now().Unix())
+	p.log.Debug("Freeing memory")
 	// Deallocate the buffers.
 	_, err = freeFunc.Call(p.ctx, uint64(ptr))
 	if err != nil {
 		return buildErrorResponse(p.log.ErrorfErrWith("Failed to free memory: %v", []any{err}, "error", err))
 	}
 
-	p.log.Debug("Unmarshalling response", "time", time.Now().Unix())
+	p.log.Debug("Unmarshalling response")
 	wasmResp := model.WasmResponse{}
 	err = json.Unmarshal(outData, &wasmResp)
 	if err != nil {
 		return buildErrorResponse(p.log.ErrorfErrWith("Failed to unmarshal wasm response: %v", []any{err}, "error", err))
 	}
 
-	p.log.Info("Ending WASM function execution", "time", time.Now().Unix())
+	p.log.Info("Ending WASM function execution")
 	return wasmResp
 }
 
@@ -232,15 +217,7 @@ func (p *WazeroExecutorPool) RegisterHostFns(fns map[string]any) error {
 }
 
 func (p *WazeroExecutorPool) Close() {
-	err := p.stdErr.Close()
-	if err != nil {
-		p.log.Errorf("Failed to close stderr file: %v", err)
-	}
-	err = p.stdOut.Close()
-	if err != nil {
-		p.log.Errorf("Failed to close stdout file: %v", err)
-	}
-	err = p.runtime.Close(p.ctx)
+	err := p.runtime.Close(p.ctx)
 	if err != nil {
 		p.log.Errorf("Failed to close wazero runtime: %v", err)
 	}

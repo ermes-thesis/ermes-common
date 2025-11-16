@@ -30,7 +30,8 @@ func NewWasmedgeExecutorPool(cfg Config, log logger.Logger) *WasmedgeExecutorPoo
 	wasi := wasmedge.NewWasiModule(
 		nil,
 		nil,
-		[]string{".:./sandbox"},
+		nil,
+		//[]string{".:./sandbox"},
 	)
 
 	pool := &WasmedgeExecutorPool{
@@ -62,7 +63,7 @@ func (p *WasmedgeExecutorPool) Invoke(fnBuffer []byte, entrypoint string, input 
 }
 
 func (p *WasmedgeExecutorPool) doInvoke(worker *wasmedgeExecutor, fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse {
-	p.log.Info("Starting WASM function execution", "time", time.Now().Unix())
+	p.log.Info("Starting WASM function execution")
 
 	ast, err := worker.loader.LoadBuffer(fnBuffer)
 	if err != nil {
@@ -74,13 +75,13 @@ func (p *WasmedgeExecutorPool) doInvoke(worker *wasmedgeExecutor, fnBuffer []byt
 		return buildErrorResponse(p.log.ErrorfErrWith("failed to validate WASM module: %v", []any{err}, "error", err))
 	}
 
-	p.log.Debug("Instantiating module", "time", time.Now().Unix())
+	p.log.Debug("Instantiating module")
 	mod, err := worker.exec.Instantiate(worker.store, ast)
 	if err != nil {
 		return buildErrorResponse(p.log.ErrorfErrWith("failed to instantiate module: %v", []any{err}, "error", err))
 	}
 
-	p.log.Debug("Getting _initialize, malloc and free funcs", "time", time.Now().Unix())
+	p.log.Debug("Getting _initialize, malloc and free funcs")
 	initFunc := mod.FindFunction("_initialize")
 	mallocFunc := mod.FindFunction("malloc")
 	freeFunc := mod.FindFunction("free")
@@ -88,7 +89,7 @@ func (p *WasmedgeExecutorPool) doInvoke(worker *wasmedgeExecutor, fnBuffer []byt
 		return buildErrorResponse(p.log.ErrorfErrWith("module does not export _initialize/malloc/free; ensure your TinyGo build exports them: %v", []any{err}, "error", err))
 	}
 
-	p.log.Debug("Calling func _initialize", "time", time.Now().Unix())
+	p.log.Debug("Calling func _initialize")
 	_, err = worker.exec.Invoke(initFunc)
 	if err != nil {
 		return buildErrorResponse(p.log.ErrorfErrWith("failed to execute _initialize: %v", []any{err}, "error", err))
@@ -101,7 +102,7 @@ func (p *WasmedgeExecutorPool) doInvoke(worker *wasmedgeExecutor, fnBuffer []byt
 		inputData = append(inputData, arg...)
 	}
 
-	p.log.Debug("Calling malloc", "time", time.Now().Unix())
+	p.log.Debug("Calling malloc")
 	// Allocate memory for the request and the context.
 	allocateResult, err := worker.exec.Invoke(mallocFunc, int32(len(inputData)))
 	if err != nil {
@@ -109,7 +110,7 @@ func (p *WasmedgeExecutorPool) doInvoke(worker *wasmedgeExecutor, fnBuffer []byt
 	}
 	ptr := allocateResult[0].(int32)
 
-	p.log.Debug("Writing memory", "time", time.Now().Unix())
+	p.log.Debug("Writing memory")
 	// Write the input into the memory.
 	mem := mod.FindMemory("memory")
 	if mem == nil {
@@ -122,7 +123,7 @@ func (p *WasmedgeExecutorPool) doInvoke(worker *wasmedgeExecutor, fnBuffer []byt
 		return buildErrorResponse(p.log.ErrorfErrWith("Failed to writing WASM memory: %v", []any{err}, "error", err))
 	}
 
-	p.log.Debug("Running func", "time", time.Now().Unix())
+	p.log.Debug("Running func")
 	// Run the `entry` function, passing the request pointer and the length of the buffers.
 	entryArgs = append([]any{ptr}, entryArgs...)
 	entrypointFn := mod.FindFunction(entrypoint)
@@ -136,7 +137,7 @@ func (p *WasmedgeExecutorPool) doInvoke(worker *wasmedgeExecutor, fnBuffer []byt
 	}
 	outputPointer := entryResult[0].(int32)
 
-	p.log.Debug("Getting output", "time", time.Now().Unix())
+	p.log.Debug("Getting output")
 	outData, err := mem.GetData(uint(outputPointer), 8)
 	if err != nil {
 		return buildErrorResponse(p.log.ErrorfErrWith("Failed to reading WASM memory: %v", []any{err}, "error", err))
@@ -150,14 +151,14 @@ func (p *WasmedgeExecutorPool) doInvoke(worker *wasmedgeExecutor, fnBuffer []byt
 		return buildErrorResponse(p.log.ErrorfErrWith("Failed to reading WASM memory: %v", []any{err}, "error", err))
 	}
 
-	p.log.Debug("Freeing memory", "time", time.Now().Unix())
+	p.log.Debug("Freeing memory")
 	// Deallocate the buffers.
 	_, err = worker.exec.Invoke(freeFunc, ptr)
 	if err != nil {
 		return buildErrorResponse(p.log.ErrorfErrWith("Failed to free memory: %v", []any{err}, "error", err))
 	}
 
-	p.log.Debug("Unmarshalling response", "time", time.Now().Unix())
+	p.log.Debug("Unmarshalling response")
 	wasmResp := model.WasmResponse{}
 	err = json.Unmarshal(outData, &wasmResp)
 	if err != nil {
@@ -166,7 +167,7 @@ func (p *WasmedgeExecutorPool) doInvoke(worker *wasmedgeExecutor, fnBuffer []byt
 
 	ast.Release()
 	mod.Release()
-	p.log.Info("Ending WASM function execution", "time", time.Now().Unix())
+	p.log.Info("Ending WASM function execution")
 	return wasmResp
 }
 

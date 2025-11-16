@@ -76,52 +76,35 @@ func (p *WasmtimeExecutorPool) Invoke(fnBuffer []byte, entrypoint string, input 
 }
 
 func (p *WasmtimeExecutorPool) doInvoke(fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse {
-	p.log.Info("Starting WASM function execution", "time", time.Now().Unix())
-	linker := p.linker
+	p.log.Info("Starting WASM function execution")
 
-	// Configure WASI imports to write stdout into a file, and then create
-	// a `Store` using this wasi configuration.
+	store := wasmtime.NewStore(p.linker.Engine)
 	wasiConfig := wasmtime.NewWasiConfig()
-	err := wasiConfig.PreopenDir("./sandbox", ".", wasmtime.DIR_WRITE|wasmtime.DIR_READ, wasmtime.FILE_WRITE|wasmtime.FILE_READ)
-	if err != nil {
-		return buildErrorResponse(p.log.ErrorfErrWith("Failed to bind sandbox directory: %v", []any{err}, "error", err))
-	}
-
-	err = wasiConfig.SetStdoutFile("./sandbox/stdout.txt")
-	if err != nil {
-		return buildErrorResponse(p.log.ErrorfErrWith("failed to set stdout file: %v", []any{err}, "error", err))
-	}
-	err = wasiConfig.SetStderrFile("./sandbox/stderr.txt")
-	if err != nil {
-		return buildErrorResponse(p.log.ErrorfErrWith("failed to set stderr file: %v", []any{err}, "error", err))
-	}
-
-	store := wasmtime.NewStore(linker.Engine)
 	store.SetWasi(wasiConfig)
-
 	wasiConfig.Close()
 
-	p.log.Debug("Loading WASM module", "time", time.Now().Unix())
+	p.log.Debug("Loading WASM module")
 	var module *wasmtime.Module
+	var err error
 	if p.isAot {
-		module, err = wasmtime.NewModuleDeserialize(linker.Engine, fnBuffer)
+		module, err = wasmtime.NewModuleDeserialize(p.linker.Engine, fnBuffer)
 		if err != nil {
 			return buildErrorResponse(p.log.ErrorfErrWith("failed to load wasm file: %v", []any{err}, "error", err))
 		}
 	} else {
-		module, err = wasmtime.NewModule(linker.Engine, fnBuffer)
+		module, err = wasmtime.NewModule(p.linker.Engine, fnBuffer)
 		if err != nil {
 			return buildErrorResponse(p.log.ErrorfErrWith("failed to load wasm file: %v", []any{err}, "error", err))
 		}
 	}
 
-	p.log.Debug("Instantiating module", "time", time.Now().Unix())
-	instance, err := linker.Instantiate(store, module)
+	p.log.Debug("Instantiating module")
+	instance, err := p.linker.Instantiate(store, module)
 	if err != nil {
 		return buildErrorResponse(p.log.ErrorfErrWith("failed to instantiate module: %v", []any{err}, "error", err))
 	}
 
-	p.log.Debug("Calling func _initialize", "time", time.Now().Unix())
+	p.log.Debug("Calling func _initialize")
 	if initFunc := instance.GetFunc(store, "_initialize"); initFunc != nil {
 		_, err = initFunc.Call(store)
 		if err != nil {
@@ -136,21 +119,21 @@ func (p *WasmtimeExecutorPool) doInvoke(fnBuffer []byte, entrypoint string, inpu
 		inputData = append(inputData, arg...)
 	}
 
-	p.log.Debug("Getting malloc and free funcs", "time", time.Now().Unix())
+	p.log.Debug("Getting malloc and free funcs")
 	mallocFunc := instance.GetFunc(store, "malloc")
 	freeFunc := instance.GetFunc(store, "free")
 	if mallocFunc == nil || freeFunc == nil {
 		return buildErrorResponse(p.log.ErrorfErrWith("module does not export malloc/free; ensure your TinyGo build exports them: %v", []any{err}, "error", err))
 	}
 
-	p.log.Debug("Calling malloc", "time", time.Now().Unix())
+	p.log.Debug("Calling malloc")
 	allocateResult, err := mallocFunc.Call(store, int32(len(inputData)))
 	if err != nil {
 		return buildErrorResponse(p.log.ErrorfErrWith("failed to execute malloc: %v", []any{err}, "error", err))
 	}
 	ptr := allocateResult.(int32)
 
-	p.log.Debug("Writing memory", "time", time.Now().Unix())
+	p.log.Debug("Writing memory")
 	memExport := instance.GetExport(store, "memory")
 	if memExport == nil {
 		return buildErrorResponse(p.log.ErrorfErrWith("Wasm instance does not export memory object: %v", []any{err}, "error", err))
@@ -168,14 +151,14 @@ func (p *WasmtimeExecutorPool) doInvoke(fnBuffer []byte, entrypoint string, inpu
 		return buildErrorResponse(p.log.ErrorfErrWith("entrypoint function not found: %v", []any{err}, "error", err))
 	}
 
-	p.log.Debug("Running func", "time", time.Now().Unix())
+	p.log.Debug("Running func")
 	entryResult, err := entrypointFn.Call(store, entryArgs...)
 	if err != nil {
 		return buildErrorResponse(p.log.ErrorfErr("Failed execute entry function: %v", []any{err}, "error", err))
 	}
 	outputPointer := entryResult.(int32)
 
-	p.log.Debug("Getting output", "time", time.Now().Unix())
+	p.log.Debug("Getting output")
 	outData := make([]byte, 8)
 	copy(outData, mem.UnsafeData(store)[int(outputPointer):int(outputPointer)+8])
 	resultPointer := binary.LittleEndian.Uint32(outData[:4])
@@ -187,7 +170,7 @@ func (p *WasmtimeExecutorPool) doInvoke(fnBuffer []byte, entrypoint string, inpu
 	outData = make([]byte, resultLength)
 	copy(outData, mem.UnsafeData(store)[start:end])
 
-	p.log.Debug("Freeing memory", "time", time.Now().Unix())
+	p.log.Debug("Freeing memory")
 	// Deallocate the buffers.
 	_, err = freeFunc.Call(store, ptr)
 	if err != nil {
@@ -197,14 +180,14 @@ func (p *WasmtimeExecutorPool) doInvoke(fnBuffer []byte, entrypoint string, inpu
 	module.Close()
 	store.Close()
 
-	p.log.Debug("Unmarshalling response", "time", time.Now().Unix())
+	p.log.Debug("Unmarshalling response")
 	wasmResp := model.WasmResponse{}
 	err = json.Unmarshal(outData, &wasmResp)
 	if err != nil {
 		return buildErrorResponse(p.log.ErrorfErrWith("Failed to unmarshal wasm response\": %v", []any{err}, "error", err))
 	}
 
-	p.log.Info("Ending WASM function execution", "time", time.Now().Unix())
+	p.log.Info("Ending WASM function execution")
 	return wasmResp
 }
 
@@ -225,7 +208,7 @@ func (p *WasmtimeExecutorPool) Close() {
 	totalWorkers := cap(p.workers)
 
 	for i := 0; i < totalWorkers; i++ {
-		_ = <-p.workers
+		<-p.workers
 	}
 	close(p.workers)
 
