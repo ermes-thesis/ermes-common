@@ -3,9 +3,10 @@ package logger
 import (
 	"errors"
 	"fmt"
-	"github.com/rs/zerolog"
 	"os"
 	"strings"
+
+	"github.com/rs/zerolog"
 )
 
 type Level int8

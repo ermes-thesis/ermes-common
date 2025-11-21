@@ -214,7 +214,7 @@ func buildConsoleWriter(out io.Writer, noColor bool) diode.Writer {
 			level := parseLevel(uppercaseLevel)
 			levelSection := colorize(fmt.Sprintf("[%s]", uppercaseLevel), levelColors[level], noColor)
 			pad := levelSectionWidthWithColors - len(levelSection)
-			if noColor {
+			if noColor || levelColors[level] == 0 {
 				pad = levelSectionWidthWithoutColors - len(levelSection)
 			}
 			levelSection = levelSection + strings.Repeat(" ", pad)

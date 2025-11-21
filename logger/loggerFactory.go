@@ -2,6 +2,7 @@ package logger
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/rs/zerolog"
 )
@@ -11,7 +12,7 @@ type Factory struct {
 }
 
 func NewFactory(base Config) *Factory {
-	zerolog.TimeFieldFormat = "2006-01-02 15:04:05"
+	zerolog.TimeFieldFormat = time.RFC3339Nano
 	return &Factory{base: base}
 }
 
