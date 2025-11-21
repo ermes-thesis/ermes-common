@@ -189,7 +189,7 @@ func buildConsoleWriter(out io.Writer, noColor bool) diode.Writer {
 	return diode.NewWriter(zerolog.ConsoleWriter{
 		Out:           out,
 		NoColor:       noColor,
-		TimeFormat:    "2006-01-02 15:04:05",
+		TimeFormat:    time.RFC3339Nano,
 		FieldsExclude: []string{"component"},
 		PartsOrder:    []string{zerolog.LevelFieldName, zerolog.TimestampFieldName, "component", zerolog.CallerFieldName, zerolog.MessageFieldName},
 		FormatPartValueByName: func(i any, s string) string {
