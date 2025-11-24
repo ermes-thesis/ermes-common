@@ -165,7 +165,7 @@ func (p *WazeroExecutorPool) doInvoke(fnBuffer []byte, entrypoint string, input 
 	p.log.Debug("Running func")
 	entryResult, err := entrypointFn.Call(p.ctx, entryArgs...)
 	if err != nil {
-		return buildErrorResponse(p.log.ErrorfErr("Failed execute entry function: %v", []any{err}, "error", err))
+		return buildErrorResponse(p.log.ErrorfErrWith("Failed execute entry function", []any{}, "error", err))
 	}
 	outputPointer := api.DecodeI32(entryResult[0])
 

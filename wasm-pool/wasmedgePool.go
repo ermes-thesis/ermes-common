@@ -133,7 +133,7 @@ func (p *WasmedgeExecutorPool) doInvoke(worker *wasmedgeExecutor, fnBuffer []byt
 
 	entryResult, err := worker.exec.Invoke(entrypointFn, entryArgs...)
 	if err != nil {
-		return buildErrorResponse(p.log.ErrorfErr("Failed execute entry function: %v", []any{err}, "error", err))
+		return buildErrorResponse(p.log.ErrorfErrWith("Failed execute entry function", []any{}, "error", err))
 	}
 	outputPointer := entryResult[0].(int32)
 

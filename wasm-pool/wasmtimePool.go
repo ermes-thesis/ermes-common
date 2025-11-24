@@ -154,7 +154,7 @@ func (p *WasmtimeExecutorPool) doInvoke(fnBuffer []byte, entrypoint string, inpu
 	p.log.Debug("Running func")
 	entryResult, err := entrypointFn.Call(store, entryArgs...)
 	if err != nil {
-		return buildErrorResponse(p.log.ErrorfErr("Failed execute entry function: %v", []any{err}, "error", err))
+		return buildErrorResponse(p.log.ErrorfErrWith("Failed execute entry function", []any{}, "error", err))
 	}
 	outputPointer := entryResult.(int32)
 
