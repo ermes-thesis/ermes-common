@@ -183,6 +183,49 @@ func TestQueryTemplateValidate(t *testing.T) {
 	}
 }
 
+func TestToRedisQuery(t *testing.T) {
+	query := `
+		{
+		  "SELECT": "ALL",
+		  "AS": "sequentialAndEventual",
+		  "WHERE": {
+			"OR": [
+			  {
+				"AND": [
+				  {
+					"field": "owner",
+					"eq": "userId"
+				  },
+				  {
+					"field": "consistency",
+					"eq": 0
+				  }
+				]
+			  },
+			  {
+				"AND": [
+				  {
+					"field": "owner",
+					"eq": "userId"
+				  },
+				  {
+					"field": "consistency",
+					"eq": 1
+				  }
+				]
+			  }
+			]
+		  }
+		}`
+
+	var template QueryTemplate
+	err := json.Unmarshal([]byte(query), &template)
+	require.NoError(t, err)
+	redisCmd, err := template.ToRedisSearchCommand()
+	require.NoError(t, err)
+	require.Equal(t, "((@owner:{userId} @consistency:[0 0]) | (@owner:{userId} @consistency:[1 1]))", redisCmd)
+}
+
 func TestUnmarshalCondition(t *testing.T) {
 	jsonStr := `{
 			"AND": [

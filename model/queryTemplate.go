@@ -155,9 +155,9 @@ func (o *OrCondition) ToRedisQuery() (string, error) {
 		if err != nil {
 			return "", err
 		}
-		parts = append(parts, part)
+		parts = append(parts, fmt.Sprintf("(%s)", part))
 	}
-	return fmt.Sprintf("(|%s)", strings.Join(parts, " ")), nil
+	return fmt.Sprintf("(%s)", strings.Join(parts, " | ")), nil
 }
 
 func (o *OrCondition) ReplacePlaceholder(vars map[string]any) (Condition, error) {
