@@ -35,7 +35,7 @@ type Logger interface {
 	Evalf(format string, args ...any)
 	EvalfWith(format string, args []any, attrs ...any)
 
-	Enabled(level zerolog.Level) bool
+	Enabled(level Level) bool
 	Mute()
 	Unmute()
 
@@ -356,26 +356,28 @@ func (l *Impl) ErrorfErrWith(format string, args []any, attrs ...any) error {
 }
 
 func (l *Impl) Eval(msg string, args ...any) {
-	if !l.config.Muted && l.Enabled(zerolog.WarnLevel) {
+	// Have to check if logger is enabled for Eval level in this way, since zerolog does not have
+	// a builtin Eval level
+	if !l.config.Muted && l.Enabled(EvalLevel) {
 		// Overwriting the WARN level with EVAL, but treating it still as a WARN
 		l.logger.Warn().Str(zerolog.LevelFieldName, "eval").Fields(args).Msg(msg)
 	}
 }
 
 func (l *Impl) Evalf(format string, args ...any) {
-	if !l.config.Muted && l.Enabled(zerolog.WarnLevel) {
+	if !l.config.Muted && l.Enabled(EvalLevel) {
 		l.logger.Warn().Str(zerolog.LevelFieldName, "eval").Msgf(format, args...)
 	}
 }
 
 func (l *Impl) EvalfWith(format string, args []any, attrs ...any) {
-	if !l.config.Muted && l.Enabled(zerolog.WarnLevel) {
+	if !l.config.Muted && l.Enabled(EvalLevel) {
 		l.logger.Warn().Str(zerolog.LevelFieldName, "eval").Fields(attrs).Msgf(format, args...)
 	}
 }
 
-func (l *Impl) Enabled(level zerolog.Level) bool {
-	return level >= l.logger.GetLevel()
+func (l *Impl) Enabled(level Level) bool {
+	return level >= l.config.Level
 }
 
 func (l *Impl) Mute() {
