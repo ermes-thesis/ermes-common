@@ -82,8 +82,8 @@ var projectRootOnce sync.Once
 func makeRotatingFileWriter(logPath string) io.WriteCloser {
 	return &lumberjack.Logger{
 		Filename:   logPath,
-		MaxSize:    10,
-		MaxBackups: 5,
+		MaxSize:    20,
+		MaxBackups: 20,
 		MaxAge:     7,
 		Compress:   true,
 	}
@@ -198,7 +198,7 @@ func buildConsoleWriter(out io.Writer, noColor bool) diode.Writer {
 				if !ok {
 					return ""
 				}
-				return strings.ToUpper(fmt.Sprintf("[%s]", value))
+				return "[" + strings.ToUpper(value) + "]"
 			}
 			return i.(string)
 		},
@@ -212,7 +212,7 @@ func buildConsoleWriter(out io.Writer, noColor bool) diode.Writer {
 		FormatLevel: func(levelStr any) string {
 			uppercaseLevel := strings.ToUpper(levelStr.(string))
 			level := parseLevel(uppercaseLevel)
-			levelSection := colorize(fmt.Sprintf("[%s]", uppercaseLevel), levelColors[level], noColor)
+			levelSection := colorize("["+uppercaseLevel+"]", levelColors[level], noColor)
 			pad := levelSectionWidthWithColors - len(levelSection)
 			if noColor || levelColors[level] == 0 {
 				pad = levelSectionWidthWithoutColors - len(levelSection)
@@ -220,8 +220,8 @@ func buildConsoleWriter(out io.Writer, noColor bool) diode.Writer {
 			levelSection = levelSection + strings.Repeat(" ", pad)
 			return levelSection
 		},
-	}, 1000, 10*time.Millisecond, func(missed int) {
-		fmt.Printf("Logger dropped %d messages", missed)
+	}, 10000, 50*time.Millisecond, func(missed int) {
+		fmt.Fprintf(os.Stderr, "Logger dropped %d messages\n", missed)
 	})
 }
 
