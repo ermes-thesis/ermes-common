@@ -50,16 +50,19 @@ func (q *QueryTemplate) ToRedisSearchCommand() (string, error) {
 		return "", err
 	}
 
-	query := "*"
-	if q.Where != nil && q.Where.Condition != nil {
-		rq, err := q.Where.Condition.ToRedisQuery()
-		if err != nil {
-			return "", err
-		}
-		query = rq
+	// Default catch-all query
+	if q.Where == nil || q.Where.Condition == nil {
+		return "*", nil
 	}
 
-	return query, nil
+	var sb strings.Builder
+	sb.Grow(256)
+
+	if err := q.Where.Condition.WriteRedisQuery(&sb); err != nil {
+		return "", err
+	}
+
+	return sb.String(), nil
 }
 
 func (q *QueryTemplate) ReplacePlaceholder(vars map[string]any) (*QueryTemplate, error) {
@@ -84,7 +87,7 @@ func (q *QueryTemplate) ReplacePlaceholderFromStrings(vars map[string]string) (*
 
 type Condition interface {
 	Validate() error
-	ToRedisQuery() (string, error)
+	WriteRedisQuery(sb *strings.Builder) error
 	ReplacePlaceholder(vars map[string]any) (Condition, error)
 }
 
@@ -104,16 +107,16 @@ func (a *AndCondition) Validate() error {
 	return nil
 }
 
-func (a *AndCondition) ToRedisQuery() (string, error) {
-	parts := make([]string, 0, len(a.Conditions))
-	for _, c := range a.Conditions {
-		part, err := c.ToRedisQuery()
-		if err != nil {
-			return "", err
+func (a *AndCondition) WriteRedisQuery(sb *strings.Builder) error {
+	for i, c := range a.Conditions {
+		if i > 0 {
+			sb.WriteString(" ")
 		}
-		parts = append(parts, part)
+		if err := c.WriteRedisQuery(sb); err != nil {
+			return err
+		}
 	}
-	return strings.Join(parts, " "), nil
+	return nil
 }
 
 func (a *AndCondition) ReplacePlaceholder(vars map[string]any) (Condition, error) {
@@ -148,16 +151,20 @@ func (o *OrCondition) Validate() error {
 	return nil
 }
 
-func (o *OrCondition) ToRedisQuery() (string, error) {
-	parts := make([]string, 0, len(o.Conditions))
-	for _, c := range o.Conditions {
-		part, err := c.ToRedisQuery()
-		if err != nil {
-			return "", err
+func (o *OrCondition) WriteRedisQuery(sb *strings.Builder) error {
+	sb.WriteByte('(')
+	for i, c := range o.Conditions {
+		if i > 0 {
+			sb.WriteString(" | ")
 		}
-		parts = append(parts, fmt.Sprintf("(%s)", part))
+		sb.WriteByte('(')
+		if err := c.WriteRedisQuery(sb); err != nil {
+			return err
+		}
+		sb.WriteByte(')')
 	}
-	return fmt.Sprintf("(%s)", strings.Join(parts, " | ")), nil
+	sb.WriteByte(')')
+	return nil
 }
 
 func (o *OrCondition) ReplacePlaceholder(vars map[string]any) (Condition, error) {
@@ -187,12 +194,13 @@ func (n *NotCondition) Validate() error {
 	return n.Condition.Validate()
 }
 
-func (n *NotCondition) ToRedisQuery() (string, error) {
-	part, err := n.Condition.ToRedisQuery()
-	if err != nil {
-		return "", err
+func (n *NotCondition) WriteRedisQuery(sb *strings.Builder) error {
+	sb.WriteString("-(")
+	if err := n.Condition.WriteRedisQuery(sb); err != nil {
+		return err
 	}
-	return "-" + part, nil
+	sb.WriteByte(')')
+	return nil
 }
 
 func (n *NotCondition) ReplacePlaceholder(vars map[string]any) (Condition, error) {
@@ -217,31 +225,29 @@ func (e *EqCondition) Validate() error {
 		return errors.New("eq condition requires a field")
 	}
 	if str, ok := e.Value.(string); ok {
-		ltCount := strings.Count(str, "<")
-		gtCount := strings.Count(str, ">")
-
-		if ltCount > 0 || gtCount > 0 {
-			if ltCount != 1 || gtCount != 1 {
-				return errors.New("eq value can contain only one placeholder embraced in '<' and '>'")
-			}
-			if strings.Index(str, "<") > strings.Index(str, ">") {
-				return errors.New("'<' must come before '>'")
-			}
+		if err := validatePlaceholderString(str); err != nil {
+			return fmt.Errorf("eq value error: %w", err)
 		}
 	}
-
 	return nil
 }
 
-func (e *EqCondition) ToRedisQuery() (string, error) {
+func (e *EqCondition) WriteRedisQuery(sb *strings.Builder) error {
+	sb.WriteString("@")
+	sb.WriteString(e.Field)
+	sb.WriteString(":")
+
 	switch v := e.Value.(type) {
 	case string:
-		return fmt.Sprintf(`@%s:{%s}`, e.Field, escapeString(v)), nil
+		sb.WriteByte('{')
+		sb.WriteString(escapeRedisString(v))
+		sb.WriteByte('}')
 	case float64, int:
-		return fmt.Sprintf(`@%s:[%v %v]`, e.Field, v, v), nil
+		fmt.Fprintf(sb, "[%v %v]", v, v)
 	default:
-		return "", fmt.Errorf("unsupported value type for eq: %T", v)
+		return fmt.Errorf("unsupported value type for eq: %T", v)
 	}
+	return nil
 }
 
 func (e *EqCondition) ReplacePlaceholder(vars map[string]any) (Condition, error) {
@@ -272,32 +278,29 @@ func (g *GtCondition) Validate() error {
 		return errors.New("gt condition requires a field")
 	}
 	if str, ok := g.Value.(string); ok {
-		ltCount := strings.Count(str, "<")
-		gtCount := strings.Count(str, ">")
-
-		if ltCount > 0 || gtCount > 0 {
-			if ltCount != 1 || gtCount != 1 {
-				return errors.New("gt value can contain only one placeholder embraced in '<' and '>'")
-			}
-			if strings.Index(str, "<") > strings.Index(str, ">") {
-				return errors.New("'<' must come before '>'")
-			}
+		if err := validatePlaceholderString(str); err != nil {
+			return fmt.Errorf("gt value error: %w", err)
 		}
 	}
-
 	return nil
 }
 
-func (g *GtCondition) ToRedisQuery() (string, error) {
+func (g *GtCondition) WriteRedisQuery(sb *strings.Builder) error {
+	sb.WriteString("@")
+	sb.WriteString(g.Field)
+	sb.WriteString(":")
+
 	switch v := g.Value.(type) {
 	case float64:
-		return fmt.Sprintf(`@%s:[(%f +inf]`, g.Field, v), nil
+		fmt.Fprintf(sb, "[(%f +inf]", v)
 	case int:
-		return fmt.Sprintf(`@%s:[(%d +inf]`, g.Field, v), nil
+		fmt.Fprintf(sb, "[(%d +inf]", v)
 	default:
-		return "", fmt.Errorf("unsupported value type for gt: %T", v)
+		return fmt.Errorf("unsupported value type for gt: %T", v)
 	}
+	return nil
 }
+
 func (g *GtCondition) ReplacePlaceholder(vars map[string]any) (Condition, error) {
 	if str, ok := g.Value.(string); ok {
 		val, err := replacePlaceholderOrError(str, vars)
@@ -430,6 +433,21 @@ func (cw *ConditionWrapper) String() string {
 	return fmt.Sprintf("%+v", cw.Condition)
 }
 
+func validatePlaceholderString(str string) error {
+	ltCount := strings.Count(str, "<")
+	gtCount := strings.Count(str, ">")
+
+	if ltCount > 0 || gtCount > 0 {
+		if ltCount != 1 || gtCount != 1 {
+			return errors.New("value can contain only one placeholder embraced in '<' and '>'")
+		}
+		if strings.Index(str, "<") > strings.Index(str, ">") {
+			return errors.New("'<' must come before '>'")
+		}
+	}
+	return nil
+}
+
 func replacePlaceholderOrError(s string, vars map[string]any) (any, error) {
 	if strings.HasPrefix(s, "<") && strings.HasSuffix(s, ">") {
 		key := s[1 : len(s)-1]
@@ -441,6 +459,16 @@ func replacePlaceholderOrError(s string, vars map[string]any) (any, error) {
 	return s, nil
 }
 
-func escapeString(s string) string {
-	return strings.ReplaceAll(s, `"`, `\"`)
+func escapeRedisString(s string) string {
+	specialChars := ",.<>{}[]\"':;!@#$%^&*()-+=~| "
+	var sb strings.Builder
+	sb.Grow(len(s) + 5) // Optimistic pre-allocation
+
+	for _, char := range s {
+		if strings.ContainsRune(specialChars, char) {
+			sb.WriteRune('\\')
+		}
+		sb.WriteRune(char)
+	}
+	return sb.String()
 }

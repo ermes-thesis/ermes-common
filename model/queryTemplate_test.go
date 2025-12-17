@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -111,7 +112,7 @@ func TestQueryTemplateValidate(t *testing.T) {
 					},
 				},
 			},
-			wantedErr: "eq value can contain only one placeholder embraced in '<' and '>'",
+			wantedErr: "eq value error: value can contain only one placeholder embraced in '<' and '>'",
 		},
 		{
 			name: "wrong template placeholder delimiters in Eq Condition",
@@ -125,7 +126,7 @@ func TestQueryTemplateValidate(t *testing.T) {
 					},
 				},
 			},
-			wantedErr: "'<' must come before '>'",
+			wantedErr: "eq value error: '<' must come before '>'",
 		},
 		{
 			name: "invalid template with wrong condition in Gt Condition",
@@ -153,7 +154,7 @@ func TestQueryTemplateValidate(t *testing.T) {
 					},
 				},
 			},
-			wantedErr: "gt value can contain only one placeholder embraced in '<' and '>'",
+			wantedErr: "gt value error: value can contain only one placeholder embraced in '<' and '>'",
 		},
 		{
 			name: "wrong template placeholder delimiters in Gt Condition",
@@ -167,7 +168,7 @@ func TestQueryTemplateValidate(t *testing.T) {
 					},
 				},
 			},
-			wantedErr: "'<' must come before '>'",
+			wantedErr: "gt value error: '<' must come before '>'",
 		},
 	}
 
@@ -256,7 +257,7 @@ type UnsupportedCondition struct {
 	Value any
 }
 
-func (c UnsupportedCondition) ToRedisQuery() (string, error) {
+func (c UnsupportedCondition) WriteRedisQuery(sb *strings.Builder) error {
 	panic("implement me")
 }
 
