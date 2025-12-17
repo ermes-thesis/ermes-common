@@ -2,13 +2,12 @@ package caches
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
-	"sync"
 
 	"github.com/ermes-thesis/ermes-common/logger"
 	"github.com/ermes-thesis/ermes-common/model"
+	"golang.org/x/sync/singleflight"
 )
 
 // MetadataBinaryCache stores compiled binaries on disk and keeps track of them
@@ -16,18 +15,19 @@ import (
 // from disk.
 type MetadataBinaryCache struct {
 	cache  *BaseCache[model.FunctionMetadata]
+	binary *BaseCache[[]byte]
+	group  singleflight.Group
 	binDir string
 	log    logger.Logger
-	pool   sync.Pool
 }
 type FunctionBundle struct {
-	Binary    *ReusableBuffer
+	Binary    []byte
 	Metadata  model.FunctionMetadata
 	Templates map[string]model.QueryTemplate
 }
 
 func (f FunctionBundle) String() string {
-	displayBytes := f.Binary.Buf
+	displayBytes := f.Binary
 	truncated := false
 	if len(displayBytes) > 30 {
 		displayBytes = displayBytes[:30]
@@ -36,15 +36,10 @@ func (f FunctionBundle) String() string {
 
 	binStr := fmt.Sprintf("%v", displayBytes)
 	if truncated {
-		binStr = fmt.Sprintf("%s...(truncated, total %d bytes)", binStr, len(f.Binary.Buf))
+		binStr = fmt.Sprintf("%s...(truncated, total %d bytes)", binStr, len(f.Binary))
 	}
 
 	return fmt.Sprintf("{Binary:%s Metadata:%+v Templates:%+v}", binStr, f.Metadata, f.Templates)
-}
-
-type ReusableBuffer struct {
-	Buf         []byte
-	ReleaseFunc func() `json:"-"`
 }
 
 // NewMetadataBinaryCache creates a new MetadataBinaryCache based on the given configuration.
@@ -69,16 +64,16 @@ func NewMetadataBinaryCache(config MetadataBinaryCacheConfig, log logger.Logger)
 		return nil, err
 	}
 
+	binaryCache, err := NewBaseCache[[]byte](config.Size, config.Ttl)
+	if err != nil {
+		return nil, err
+	}
+
 	return &MetadataBinaryCache{
 		cache:  binCache,
+		binary: binaryCache,
 		binDir: config.BinDir,
 		log:    log,
-		pool: sync.Pool{
-			New: func() any {
-				log.Eval("Creating new buffer in pool")
-				return make([]byte, 0, 512*1024) // 512KB initial buffer size
-			},
-		},
 	}, nil
 }
 
@@ -100,42 +95,33 @@ func (c *MetadataBinaryCache) Set(functionMetadata model.FunctionMetadata, binar
 	}
 
 	c.cache.Set(functionNameString, functionMetadata)
+	c.binary.Set(functionNameString, binary)
 	return nil
 }
 
-func (c *MetadataBinaryCache) GetWithBinary(functionName string, functionVersion string) (*ReusableBuffer, *model.FunctionMetadata, bool, error) {
+func (c *MetadataBinaryCache) GetWithBinary(functionName string, functionVersion string) ([]byte, *model.FunctionMetadata, bool, error) {
 	functionNameString := functionName + "@" + functionVersion
 	binPath := filepath.Join(c.binDir, functionNameString+".wasm")
 	if fnMetadata, ok := c.cache.Get(functionNameString); ok {
-		file, err := os.Open(binPath)
+
+		if binBuf, ok := c.binary.Get(functionNameString); ok {
+			return binBuf, &fnMetadata, true, nil
+		}
+
+		binBuf, err, _ := c.group.Do(functionNameString, func() (interface{}, error) {
+			buff, err := os.ReadFile(binPath)
+			if err != nil {
+				return nil, err
+			}
+
+			c.binary.Set(functionNameString, buff)
+			return buff, nil
+		})
 		if err != nil {
 			return nil, nil, false, err
 		}
 
-		stats, err := file.Stat()
-		if err != nil {
-			return nil, nil, false, err
-		}
-
-		buf := c.pool.Get().([]byte)
-
-		if cap(buf) < int(stats.Size()) {
-			buf = make([]byte, stats.Size())
-		} else {
-			buf = buf[:stats.Size()]
-		}
-
-		_, err = io.ReadAtLeast(file, buf, int(stats.Size()))
-		if err != nil {
-			return nil, nil, false, err
-		}
-		return &ReusableBuffer{
-			Buf: buf,
-			ReleaseFunc: func() {
-				c.log.Eval("Releasing buffer back to pool")
-				c.pool.Put(buf)
-			},
-		}, &fnMetadata, true, nil
+		return binBuf.([]byte), &fnMetadata, true, nil
 	}
 	return nil, nil, false, nil
 }
