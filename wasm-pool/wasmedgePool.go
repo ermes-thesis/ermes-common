@@ -56,7 +56,7 @@ func (p *WasmedgeExecutorPool) Invoke(fnBuffer []byte, entrypoint string, input 
 		return p.doInvoke(worker, fnBuffer, entrypoint, input...)
 	case <-getTimeoutChannel(p.timeout):
 		return model.WasmResponse{
-			HttpCode: 500,
+			HttpCode: 503,
 			Response: fmt.Sprintf("no available wasm executors in pool"),
 		}
 	}
