@@ -6,9 +6,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ermes-thesis/ermes-common/logger"
 	"github.com/ermes-thesis/ermes-common/model"
 	"github.com/stretchr/testify/require"
 )
+
+func createNewLogger(t testing.TB) logger.Logger {
+	log, err := logger.NewLogger(logger.Config{
+		Level:     logger.EvalLevel,
+		Format:    "text",
+		AddSource: false,
+		Muted:     true,
+	})
+	require.NoError(t, err)
+	return log
+}
 
 func TestBinaryCache_SetAndGet(t *testing.T) {
 	tmpDir := t.TempDir()
@@ -19,7 +31,7 @@ func TestBinaryCache_SetAndGet(t *testing.T) {
 		BinDir: tmpDir,
 	}
 
-	cache, err := NewMetadataBinaryCache(cfg)
+	cache, err := NewMetadataBinaryCache(cfg, createNewLogger(t))
 	require.NoError(t, err)
 
 	data := []byte("test-content-binary")
@@ -59,7 +71,7 @@ func TestBinaryCache_EvictionRemovesFile(t *testing.T) {
 		BinDir: tmpDir,
 	}
 
-	cache, err := NewMetadataBinaryCache(cfg)
+	cache, err := NewMetadataBinaryCache(cfg, createNewLogger(t))
 	require.NoError(t, err)
 
 	fn1 := "func1"
@@ -113,7 +125,7 @@ func TestBinaryCache_GetMissing(t *testing.T) {
 		BinDir: tmpDir,
 	}
 
-	cache, err := NewMetadataBinaryCache(cfg)
+	cache, err := NewMetadataBinaryCache(cfg, createNewLogger(t))
 	require.NoError(t, err)
 
 	// Nothing set yet
