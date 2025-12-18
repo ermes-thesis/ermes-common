@@ -40,7 +40,7 @@ func TestWasmedgePool(t *testing.T) {
 		t.Fatalf("failed to read wasm file: %v", err)
 	}
 
-	resp := pool.Invoke(wasmBuffer, "authEntry", []byte("token"))
+	resp := pool.Invoke("fun", wasmBuffer, "authEntry", []byte("token"))
 	fmt.Println("Auth function:", resp.Response, resp.HttpCode)
 
 	if resp.HttpCode != 200 {
@@ -57,7 +57,7 @@ func TestWasmtimePool(t *testing.T) {
 		t.Fatalf("failed to read wasm file: %v", err)
 	}
 
-	resp := pool.Invoke(wasmBuffer, "authEntry", []byte("token"))
+	resp := pool.Invoke("fun", wasmBuffer, "authEntry", []byte("token"))
 	fmt.Println("Auth function:", resp.Response, resp.HttpCode)
 
 	if resp.HttpCode != 200 {
@@ -74,7 +74,7 @@ func TestWazeroPool(t *testing.T) {
 		t.Fatalf("failed to read wasm file: %v", err)
 	}
 
-	resp := pool.Invoke(wasmBuffer, "authEntry", []byte("token"))
+	resp := pool.Invoke("fun", wasmBuffer, "authEntry", []byte("token"))
 	fmt.Println("Auth function:", resp.Response, resp.HttpCode)
 
 	if resp.HttpCode != 200 {
@@ -147,7 +147,7 @@ func runConcurrentTest(t *testing.T, pool wasm.ExecutorPool) {
 		go func() {
 			defer wg.Done()
 
-			resp := pool.Invoke(wasmBuffer, "authEntry", []byte("token"))
+			resp := pool.Invoke("fun", wasmBuffer, "authEntry", []byte("token"))
 			fmt.Println("Auth function:", resp.Response, resp.HttpCode)
 
 			if resp.HttpCode != 200 {
@@ -170,7 +170,7 @@ func BenchmarkWasmedgePool(b *testing.B) {
 
 	for b.Loop() {
 
-		resp := pool.Invoke(wasmBuffer, "authEntry", []byte("token"))
+		resp := pool.Invoke("fun", wasmBuffer, "authEntry", []byte("token"))
 		fmt.Println("Auth function:", resp.Response, resp.HttpCode)
 
 		if resp.HttpCode != 200 {
@@ -190,7 +190,7 @@ func BenchmarkWasmtimePool(b *testing.B) {
 
 	for b.Loop() {
 
-		resp := pool.Invoke(wasmBuffer, "authEntry", []byte("token"))
+		resp := pool.Invoke("fun", wasmBuffer, "authEntry", []byte("token"))
 		fmt.Println("Auth function:", resp.Response, resp.HttpCode)
 
 		if resp.HttpCode != 200 {
@@ -210,7 +210,7 @@ func BenchmarkWazeroPool(b *testing.B) {
 
 	for b.Loop() {
 
-		resp := pool.Invoke(wasmBuffer, "authEntry", []byte("token"))
+		resp := pool.Invoke("fun", wasmBuffer, "authEntry", []byte("token"))
 		fmt.Println("Auth function:", resp.Response, resp.HttpCode)
 
 		if resp.HttpCode != 200 {
