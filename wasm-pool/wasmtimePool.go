@@ -113,9 +113,9 @@ func (p *WasmtimeExecutorPool) doInvoke(fnBuffer []byte, entrypoint string, inpu
 	}
 
 	var inputData []byte
-	var entryArgs []any
-	for _, arg := range input {
-		entryArgs = append(entryArgs, int32(len(arg)))
+	entryArgs := make([]any, len(input))
+	for i, arg := range input {
+		entryArgs[i] = int32(len(arg))
 		inputData = append(inputData, arg...)
 	}
 
@@ -159,16 +159,14 @@ func (p *WasmtimeExecutorPool) doInvoke(fnBuffer []byte, entrypoint string, inpu
 	outputPointer := entryResult.(int32)
 
 	p.log.Debug("Getting output")
-	outData := make([]byte, 8)
-	copy(outData, mem.UnsafeData(store)[int(outputPointer):int(outputPointer)+8])
+	outData := mem.UnsafeData(store)[int(outputPointer) : int(outputPointer)+8]
 	resultPointer := binary.LittleEndian.Uint32(outData[:4])
 	resultLength := binary.LittleEndian.Uint32(outData[4:])
 
 	// Read the result of the function.
 	start = int(resultPointer)
 	end = start + int(resultLength)
-	outData = make([]byte, resultLength)
-	copy(outData, mem.UnsafeData(store)[start:end])
+	outData = mem.UnsafeData(store)[start:end]
 
 	p.log.Debug("Freeing memory")
 	// Deallocate the buffers.
