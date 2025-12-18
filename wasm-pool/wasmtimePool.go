@@ -8,8 +8,10 @@ import (
 	"time"
 
 	"github.com/bytecodealliance/wasmtime-go/v37"
+	"github.com/ermes-thesis/ermes-common/caches"
 	"github.com/ermes-thesis/ermes-common/logger"
 	"github.com/ermes-thesis/ermes-common/model"
+	"golang.org/x/sync/singleflight"
 )
 
 type WasmtimeExecutorPool struct {
@@ -18,6 +20,8 @@ type WasmtimeExecutorPool struct {
 	isAot   bool
 	log     logger.Logger
 	timeout time.Duration
+	cache   *caches.BaseCache[*wasmtime.Module]
+	group   singleflight.Group
 }
 
 func NewWasmtimeExecutorPool(cfg Config, log logger.Logger) *WasmtimeExecutorPool {
@@ -44,12 +48,17 @@ func NewWasmtimeExecutorPool(cfg Config, log logger.Logger) *WasmtimeExecutorPoo
 		log.Errorf("Failed to define WASI in linker: %v", err)
 	}
 
+	cache, err := caches.NewBaseCacheWithEviction[*wasmtime.Module](10, 0, func(key string, value caches.CacheItem[*wasmtime.Module]) {
+		value.Value.Close()
+	})
+
 	pool := &WasmtimeExecutorPool{
 		linker:  linker,
 		workers: make(chan struct{}, cfg.PoolSize),
 		isAot:   cfg.IsAot,
 		log:     log,
 		timeout: cfg.Timeout,
+		cache:   cache,
 	}
 
 	for i := 0; i < cfg.PoolSize; i++ {
@@ -59,13 +68,13 @@ func NewWasmtimeExecutorPool(cfg Config, log logger.Logger) *WasmtimeExecutorPoo
 	return pool
 }
 
-func (p *WasmtimeExecutorPool) Invoke(fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse {
+func (p *WasmtimeExecutorPool) Invoke(fnName string, fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse {
 	select {
 	case worker := <-p.workers:
 		defer func() {
 			p.workers <- worker
 		}()
-		return p.doInvoke(fnBuffer, entrypoint, input...)
+		return p.doInvoke(fnName, fnBuffer, entrypoint, input...)
 	case <-getTimeoutChannel(p.timeout):
 		p.log.Error("Local execution failed. The WASM pool was too busy and there weren't any WASM executor available")
 		return model.WasmResponse{
@@ -75,13 +84,14 @@ func (p *WasmtimeExecutorPool) Invoke(fnBuffer []byte, entrypoint string, input 
 	}
 }
 
-func (p *WasmtimeExecutorPool) doInvoke(fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse {
+func (p *WasmtimeExecutorPool) doInvoke(fnName string, fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse {
 	p.log.Info("Starting WASM function execution")
 
 	store := wasmtime.NewStore(p.linker.Engine)
 	wasiConfig := wasmtime.NewWasiConfig()
 	store.SetWasi(wasiConfig)
 	wasiConfig.Close()
+	defer store.Close()
 
 	p.log.Debug("Loading WASM module")
 	var module *wasmtime.Module
@@ -92,9 +102,24 @@ func (p *WasmtimeExecutorPool) doInvoke(fnBuffer []byte, entrypoint string, inpu
 			return buildErrorResponse(p.log.ErrorfErrWith("failed to load wasm file: %v", []any{err}, "error", err))
 		}
 	} else {
-		module, err = wasmtime.NewModule(p.linker.Engine, fnBuffer)
-		if err != nil {
-			return buildErrorResponse(p.log.ErrorfErrWith("failed to load wasm file: %v", []any{err}, "error", err))
+		if cachedModule, found := p.cache.Get(fnName); found {
+			p.log.Debug("WASM module found in cache")
+			module = cachedModule
+		} else {
+			mod, err, _ := p.group.Do(fnName, func() (interface{}, error) {
+				p.log.Debug("WASM module not found in cache, compiling new module")
+				module, err = wasmtime.NewModule(p.linker.Engine, fnBuffer)
+				if err != nil {
+					return nil, err
+				}
+
+				p.cache.Set(fnName, module)
+				return module, nil
+			})
+			if err != nil {
+				return buildErrorResponse(p.log.ErrorfErrWith("failed to load wasm file: %v", []any{err}, "error", err))
+			}
+			module = mod.(*wasmtime.Module)
 		}
 	}
 
@@ -174,9 +199,6 @@ func (p *WasmtimeExecutorPool) doInvoke(fnBuffer []byte, entrypoint string, inpu
 	if err != nil {
 		return buildErrorResponse(p.log.ErrorfErrWith("Failed to free memory: %v", []any{err}, "error", err))
 	}
-
-	module.Close()
-	store.Close()
 
 	p.log.Debug("Unmarshalling response")
 	wasmResp := model.WasmResponse{}

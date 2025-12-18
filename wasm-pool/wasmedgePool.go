@@ -47,7 +47,7 @@ func NewWasmedgeExecutorPool(cfg Config, log logger.Logger) *WasmedgeExecutorPoo
 	return pool
 }
 
-func (p *WasmedgeExecutorPool) Invoke(fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse {
+func (p *WasmedgeExecutorPool) Invoke(fnName string, fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse {
 	select {
 	case worker := <-p.workers:
 		defer func() {

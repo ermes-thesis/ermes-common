@@ -9,7 +9,7 @@ import (
 
 type ExecutorPool interface {
 	RegisterHostFns(fns map[string]any) error
-	Invoke(fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse
+	Invoke(fnName string, fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse
 	Close()
 }
 

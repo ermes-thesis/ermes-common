@@ -63,7 +63,7 @@ func NewWazeroExecutorPool(cfg Config, ctx context.Context, log logger.Logger) *
 	return pool
 }
 
-func (p *WazeroExecutorPool) Invoke(fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse {
+func (p *WazeroExecutorPool) Invoke(fnName string, fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse {
 	select {
 	case worker := <-p.workers:
 		defer func() {
