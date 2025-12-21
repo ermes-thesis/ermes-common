@@ -11,10 +11,18 @@ import (
 type Config struct {
 	PoolSize  int           `yaml:"poolSize"`
 	Timeout   time.Duration `yaml:"timeout"`
-	WithCache bool          `yaml:"withCache"`
+	WithCache CacheType     `yaml:"withCache"`
 	CacheSize int           `yaml:"cacheSize"`
 	IsAot     bool          `yaml:"isAot"`
 }
+
+type CacheType int
+
+const (
+	CacheNone     CacheType = iota
+	CacheStandard           // Cache del runtime
+	CacheHybrid             // Cache del runtime + our custom cache
+)
 
 type ChosenWasmRuntime int
 

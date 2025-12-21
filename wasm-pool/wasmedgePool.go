@@ -84,7 +84,7 @@ func (p *WasmedgeExecutorPool) doInvoke(worker *wasmedgeExecutor, fnName string,
 
 	var ast *wasmedge.AST
 
-	if p.cfg.WithCache {
+	if p.cfg.WithCache == CacheHybrid {
 		var rcm *RefCountedItem[*wasmedge.AST]
 		for {
 			if astCached, found := p.cache.Get(fnName); found {
@@ -142,6 +142,7 @@ func (p *WasmedgeExecutorPool) doInvoke(worker *wasmedgeExecutor, fnName string,
 
 	p.log.Debug("Instantiating module")
 	mod, err := worker.exec.Instantiate(worker.store, ast)
+	defer mod.Release()
 	if err != nil {
 		return buildErrorResponse(p.log.ErrorfErrWith("failed to instantiate module: %v", []any{err}, "error", err))
 	}

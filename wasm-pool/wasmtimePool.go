@@ -31,19 +31,19 @@ func NewWasmtimeExecutorPool(cfg Config, log logger.Logger) *WasmtimeExecutorPoo
 	// Wasmtime own cache on filesystem. Has been removed since now we have our custom in-memory cache. But it should not be a problem
 	// to add it again in theory
 
-	//var err error
-	//if cfg.WithCache {
-	//	err = config.CacheConfigLoadDefault()
-	//	if err != nil {
-	//		log.Errorf("Failed to load Wasmtime cache config: %v", err)
-	//	}
-	//}
+	var err error
+	if cfg.WithCache >= CacheStandard {
+		err = config.CacheConfigLoadDefault()
+		if err != nil {
+			log.Errorf("Failed to load Wasmtime cache config: %v", err)
+		}
+	}
 
 	engine := wasmtime.NewEngineWithConfig(config)
 
 	// Create a linker with WASI functions defined within it
 	linker := wasmtime.NewLinker(engine)
-	err := linker.DefineWasi()
+	err = linker.DefineWasi()
 	if err != nil {
 		log.Errorf("Failed to define WASI in linker: %v", err)
 	}
@@ -103,7 +103,7 @@ func (p *WasmtimeExecutorPool) doInvoke(fnName string, fnBuffer []byte, entrypoi
 	p.log.Debug("Loading WASM module")
 	var mod *wasmtime.Module
 
-	if p.cfg.WithCache {
+	if p.cfg.WithCache == CacheHybrid {
 		var module *RefCountedItem[*wasmtime.Module]
 		for {
 			if cachedModule, found := p.cache.Get(fnName); found {

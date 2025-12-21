@@ -114,7 +114,7 @@ func (p *WazeroExecutorPool) doInvoke(fnName string, fnBuffer []byte, entrypoint
 
 	var compMod wazero.CompiledModule
 
-	if p.cfg.WithCache {
+	if p.cfg.WithCache == CacheHybrid {
 		var compiledMod *RefCountedItem[wazero.CompiledModule]
 		for {
 			if mod, found := p.cache.Get(fnName); found {
@@ -157,7 +157,9 @@ func (p *WazeroExecutorPool) doInvoke(fnName string, fnBuffer []byte, entrypoint
 		}
 
 		compMod = m
-		defer compMod.Close(p.ctx)
+		if p.cfg.WithCache == CacheNone {
+			defer compMod.Close(p.ctx)
+		}
 	}
 
 	instance, err := runtime.InstantiateModule(p.ctx, compMod, p.modConfig.WithName(uuid.NewString()))

@@ -26,7 +26,7 @@ func createNewLogger(t testing.TB) logger.Logger {
 
 var cfg = wasm.Config{
 	PoolSize:  10,
-	WithCache: false,
+	WithCache: wasm.CacheNone,
 	IsAot:     false,
 	CacheSize: 2,
 	Timeout:   5 * time.Second,
@@ -83,10 +83,10 @@ func TestWazeroPool(t *testing.T) {
 	}
 }
 
-func TestWasmedgeWithCachePoolConcurrent(t *testing.T) {
+func TestWasmedgePoolConcurrent(t *testing.T) {
 	pool := wasm.NewWasmedgeExecutorPool(wasm.Config{
 		PoolSize:  20,
-		WithCache: true,
+		WithCache: wasm.CacheNone,
 		CacheSize: 2,
 	}, createNewLogger(t))
 	defer pool.Close()
@@ -94,10 +94,21 @@ func TestWasmedgeWithCachePoolConcurrent(t *testing.T) {
 	runConcurrentTest(t, pool)
 }
 
-func TestWasmedgePoolConcurrent(t *testing.T) {
+func TestWasmedgeWithStandardCachePoolConcurrent(t *testing.T) {
 	pool := wasm.NewWasmedgeExecutorPool(wasm.Config{
 		PoolSize:  20,
-		WithCache: false,
+		WithCache: wasm.CacheStandard,
+		CacheSize: 2,
+	}, createNewLogger(t))
+	defer pool.Close()
+
+	runConcurrentTest(t, pool)
+}
+
+func TestWasmedgeWithHybridCachePoolConcurrent(t *testing.T) {
+	pool := wasm.NewWasmedgeExecutorPool(wasm.Config{
+		PoolSize:  20,
+		WithCache: wasm.CacheHybrid,
 		CacheSize: 2,
 	}, createNewLogger(t))
 	defer pool.Close()
@@ -108,7 +119,7 @@ func TestWasmedgePoolConcurrent(t *testing.T) {
 func TestWasmtimePoolConcurrent(t *testing.T) {
 	pool := wasm.NewWasmtimeExecutorPool(wasm.Config{
 		PoolSize:  20,
-		WithCache: false,
+		WithCache: wasm.CacheNone,
 		IsAot:     false,
 		CacheSize: 2,
 	}, createNewLogger(t))
@@ -117,10 +128,22 @@ func TestWasmtimePoolConcurrent(t *testing.T) {
 	runConcurrentTest(t, pool)
 }
 
-func TestWasmtimeWithCachePoolConcurrent(t *testing.T) {
+func TestWasmtimeWithStandardCachePoolConcurrent(t *testing.T) {
 	pool := wasm.NewWasmtimeExecutorPool(wasm.Config{
 		PoolSize:  20,
-		WithCache: true,
+		WithCache: wasm.CacheStandard,
+		IsAot:     false,
+		CacheSize: 2,
+	}, createNewLogger(t))
+	defer pool.Close()
+
+	runConcurrentTest(t, pool)
+}
+
+func TestWasmtimeWithHybridCachePoolConcurrent(t *testing.T) {
+	pool := wasm.NewWasmtimeExecutorPool(wasm.Config{
+		PoolSize:  20,
+		WithCache: wasm.CacheHybrid,
 		IsAot:     false,
 		CacheSize: 2,
 	}, createNewLogger(t))
@@ -132,7 +155,7 @@ func TestWasmtimeWithCachePoolConcurrent(t *testing.T) {
 func TestWazeroPoolConcurrent(t *testing.T) {
 	pool := wasm.NewWazeroExecutorPool(wasm.Config{
 		PoolSize:  20,
-		WithCache: false,
+		WithCache: wasm.CacheNone,
 		IsAot:     true,
 		CacheSize: 2,
 	}, context.Background(), createNewLogger(t))
@@ -141,10 +164,22 @@ func TestWazeroPoolConcurrent(t *testing.T) {
 	runConcurrentTest(t, pool)
 }
 
-func TestWazeroWithCachePoolConcurrent(t *testing.T) {
+func TestWazeroWithStandardCachePoolConcurrent(t *testing.T) {
 	pool := wasm.NewWazeroExecutorPool(wasm.Config{
 		PoolSize:  20,
-		WithCache: true,
+		WithCache: wasm.CacheStandard,
+		IsAot:     true,
+		CacheSize: 2,
+	}, context.Background(), createNewLogger(t))
+	defer pool.Close()
+
+	runConcurrentTest(t, pool)
+}
+
+func TestWazeroWithHybridCachePoolConcurrent(t *testing.T) {
+	pool := wasm.NewWazeroExecutorPool(wasm.Config{
+		PoolSize:  20,
+		WithCache: wasm.CacheHybrid,
 		IsAot:     true,
 		CacheSize: 2,
 	}, context.Background(), createNewLogger(t))
