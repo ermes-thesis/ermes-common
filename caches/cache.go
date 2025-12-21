@@ -43,9 +43,9 @@ type GenericCache[T any] interface {
 	Set(key string, value T)
 }
 
-// CacheItem represents a cached value along with the time it was stored.
+// cacheItem represents a cached value along with the time it was stored.
 // The timestamp is used to enforce TTL (time-to-live) expiration policies.
-type CacheItem[T any] struct {
+type cacheItem[T any] struct {
 	Value     T
 	Timestamp time.Time
 }
@@ -56,7 +56,7 @@ type CacheItem[T any] struct {
 // If ttl is zero, items never expire and eviction is determined solely
 // by the LRU policy.
 type BaseCache[T any] struct {
-	cache *lru.Cache[string, CacheItem[T]]
+	cache *lru.Cache[string, cacheItem[T]]
 	ttl   time.Duration
 	mu    sync.RWMutex
 }
@@ -71,7 +71,7 @@ type BaseCache[T any] struct {
 //   - *BaseCache[T]: the newly created cache
 //   - error: non-nil if the cache could not be created
 func NewBaseCache[T any](size int, ttl time.Duration) (*BaseCache[T], error) {
-	cache, err := lru.New[string, CacheItem[T]](size)
+	cache, err := lru.New[string, cacheItem[T]](size)
 	if err != nil {
 		return nil, err
 	}
@@ -93,12 +93,12 @@ func NewBaseCache[T any](size int, ttl time.Duration) (*BaseCache[T], error) {
 //   - *BaseCache[T]: the newly created cache
 //   - error: non-nil if the cache could not be created
 func NewBaseCacheWithEviction[T any](size int, ttl time.Duration, onEvict func(string, T)) (*BaseCache[T], error) {
-	internalEvict := func(key string, item CacheItem[T]) {
+	internalEvict := func(key string, item cacheItem[T]) {
 		if onEvict != nil {
 			onEvict(key, item.Value)
 		}
 	}
-	cache, err := lru.NewWithEvict[string, CacheItem[T]](size, internalEvict)
+	cache, err := lru.NewWithEvict[string, cacheItem[T]](size, internalEvict)
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +157,7 @@ func (c *BaseCache[T]) Set(key string, value T) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.cache.Add(key, CacheItem[T]{
+	c.cache.Add(key, cacheItem[T]{
 		Value:     value,
 		Timestamp: time.Now(),
 	})

@@ -37,7 +37,7 @@ func TestBaseCacheWithEviction(t *testing.T) {
 
 	// Eviction function is called after a key is removed from the cache, and it sends the removed key to the channel
 	// i.e. if we found the just removed key in the channel the eviction function has been executed
-	evictFn := func(key string, item CacheItem[string]) {
+	evictFn := func(key string, item string) {
 		evicted <- key
 	}
 
