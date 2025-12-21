@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"github.com/ermes-thesis/ermes-common/caches"
+	"golang.org/x/sync/singleflight"
 	"os"
 	"time"
 
@@ -23,6 +25,8 @@ type WazeroExecutorPool struct {
 	log       logger.Logger
 	workers   chan struct{}
 	withCache bool
+	cache     *caches.BaseCache[wazero.CompiledModule]
+	group     singleflight.Group
 	timeout   time.Duration
 }
 
@@ -57,6 +61,15 @@ func NewWazeroExecutorPool(cfg Config, ctx context.Context, log logger.Logger) *
 		timeout: cfg.Timeout,
 	}
 
+	cache, err := caches.NewBaseCacheWithEviction[wazero.CompiledModule](2, 0, func(key string, mod wazero.CompiledModule) {
+		_ = mod.Close(pool.ctx)
+		log.Evalf("evicted key: %s", key)
+	})
+	if err != nil {
+		log.Errorf("Failed to instantiate cache with Eviction: %v", err)
+	}
+	pool.cache = cache
+
 	for i := 0; i < cfg.PoolSize; i++ {
 		pool.workers <- struct{}{}
 	}
@@ -69,7 +82,7 @@ func (p *WazeroExecutorPool) Invoke(fnName string, fnBuffer []byte, entrypoint s
 		defer func() {
 			p.workers <- worker
 		}()
-		return p.doInvoke(fnBuffer, entrypoint, input...)
+		return p.doInvoke(fnName, fnBuffer, entrypoint, input...)
 	case <-getTimeoutChannel(p.timeout):
 		return model.WasmResponse{
 			HttpCode: 503,
@@ -78,7 +91,7 @@ func (p *WazeroExecutorPool) Invoke(fnName string, fnBuffer []byte, entrypoint s
 	}
 }
 
-func (p *WazeroExecutorPool) doInvoke(fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse {
+func (p *WazeroExecutorPool) doInvoke(fnName string, fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse {
 	p.log.Info("Starting WASM function execution")
 	runtime := p.runtime
 
@@ -96,12 +109,31 @@ func (p *WazeroExecutorPool) doInvoke(fnBuffer []byte, entrypoint string, input 
 	// For this reason we opted to close manually close the module anyway at the end of the Invoke() execution (meaning that the next time
 	// the binary will be recompiled again)
 	//
-	// A solution to this problem would be to implement a custom LRU cache that allow us to keep track of the different modules used over
-	// time and call Close() on the modules used least recently, but we decided not to implement a custom cache for now
-	compiledMod, err := runtime.CompileModule(p.ctx, fnBuffer)
-	if err != nil {
-		return buildErrorResponse(p.log.ErrorfErrWith("Failed to compile module: %v", []any{err}, "error", err))
+	// A solution to this problem is to implement a custom LRU cache, allowing us to keep track of the different modules used over
+	// time and call Close() on the modules used least recently.
+	var compiledMod wazero.CompiledModule
+	if mod, found := p.cache.Get(fnName); found {
+		p.log.Debug("WASM module found in cache")
+		compiledMod = mod
+	} else {
+		module, err, _ := p.group.Do(fnName, func() (interface{}, error) {
+			p.log.Debug("WASM module not found in cache, compiling new module")
+
+			m, err := runtime.CompileModule(p.ctx, fnBuffer)
+			if err != nil {
+				return nil, fmt.Errorf("Failed to compile module: %v", err)
+			}
+
+			p.cache.Set(fnName, m)
+			return m, nil
+		})
+
+		if err != nil {
+			return buildErrorResponse(p.log.ErrorfErrWith(err.Error(), []any{}, "error", err))
+		}
+		compiledMod = module.(wazero.CompiledModule)
 	}
+
 	instance, err := runtime.InstantiateModule(p.ctx, compiledMod, p.modConfig.WithName(uuid.NewString()))
 	if err != nil {
 		return buildErrorResponse(p.log.ErrorfErrWith("failed to instantiate module: %v", []any{err}, "error", err))
@@ -110,9 +142,9 @@ func (p *WazeroExecutorPool) doInvoke(fnBuffer []byte, entrypoint string, input 
 	// If we close the compiled module at the end of the execution, it is removed from the in-memory cache and
 	// subsequent calls need to recompile the module. This is suboptimal, but it avoids to make the wazero's
 	// cache grow indefinitely
-	if !p.withCache {
-		defer compiledMod.Close(p.ctx)
-	}
+	//if !p.withCache {
+	//	defer compiledMod.Close(p.ctx)
+	//}
 	defer instance.Close(p.ctx)
 
 	p.log.Debug("Getting _initialize, malloc and free funcs")

@@ -48,9 +48,13 @@ func NewWasmtimeExecutorPool(cfg Config, log logger.Logger) *WasmtimeExecutorPoo
 		log.Errorf("Failed to define WASI in linker: %v", err)
 	}
 
-	cache, err := caches.NewBaseCacheWithEviction[*wasmtime.Module](10, 0, func(key string, value caches.CacheItem[*wasmtime.Module]) {
-		value.Value.Close()
+	cache, err := caches.NewBaseCacheWithEviction[*wasmtime.Module](2, 0, func(key string, mod *wasmtime.Module) {
+		mod.Close()
+		log.Evalf("evicted key: %s", key)
 	})
+	if err != nil {
+		log.Errorf("Failed to create cache: %v", err)
+	}
 
 	pool := &WasmtimeExecutorPool{
 		linker:  linker,

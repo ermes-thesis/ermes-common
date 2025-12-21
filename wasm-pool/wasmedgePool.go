@@ -4,6 +4,8 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"github.com/ermes-thesis/ermes-common/caches"
+	"golang.org/x/sync/singleflight"
 	"os"
 	"time"
 
@@ -17,6 +19,8 @@ type WasmedgeExecutorPool struct {
 	hostFns *wasmedge.Module
 	workers chan *wasmedgeExecutor
 	timeout time.Duration
+	cache   *caches.BaseCache[*wasmedge.AST]
+	group   singleflight.Group
 	log     logger.Logger
 }
 
@@ -34,11 +38,20 @@ func NewWasmedgeExecutorPool(cfg Config, log logger.Logger) *WasmedgeExecutorPoo
 		//[]string{".:./sandbox"},
 	)
 
+	cache, err := caches.NewBaseCacheWithEviction[*wasmedge.AST](3, 0, func(key string, ast *wasmedge.AST) {
+		ast.Release()
+		log.Evalf("evicted key: %s", key)
+	})
+	if err != nil {
+		log.Errorf("Failed to create cache: %v", err)
+	}
+
 	pool := &WasmedgeExecutorPool{
 		workers: make(chan *wasmedgeExecutor, cfg.PoolSize),
 		log:     log,
 		timeout: cfg.Timeout,
 		wasi:    wasi,
+		cache:   cache,
 	}
 
 	for i := 0; i < cfg.PoolSize; i++ {
@@ -53,7 +66,7 @@ func (p *WasmedgeExecutorPool) Invoke(fnName string, fnBuffer []byte, entrypoint
 		defer func() {
 			p.workers <- worker
 		}()
-		return p.doInvoke(worker, fnBuffer, entrypoint, input...)
+		return p.doInvoke(worker, fnName, fnBuffer, entrypoint, input...)
 	case <-getTimeoutChannel(p.timeout):
 		return model.WasmResponse{
 			HttpCode: 503,
@@ -62,17 +75,35 @@ func (p *WasmedgeExecutorPool) Invoke(fnName string, fnBuffer []byte, entrypoint
 	}
 }
 
-func (p *WasmedgeExecutorPool) doInvoke(worker *wasmedgeExecutor, fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse {
+func (p *WasmedgeExecutorPool) doInvoke(worker *wasmedgeExecutor, fnName string, fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse {
 	p.log.Info("Starting WASM function execution")
 
-	ast, err := worker.loader.LoadBuffer(fnBuffer)
-	if err != nil {
-		return buildErrorResponse(p.log.ErrorfErrWith("failed to load wasm file: %v", []any{err}, "error", err))
-	}
+	var ast *wasmedge.AST
+	if astCached, found := p.cache.Get(fnName); found {
+		p.log.Debug("WASM module found in cache")
+		ast = astCached
+	} else {
+		a, err, _ := p.group.Do(fnName, func() (interface{}, error) {
+			p.log.Debug("WASM module not found in cache, compiling new module")
+			a, err := worker.loader.LoadBuffer(fnBuffer)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load wasm file: %v", err)
+			}
 
-	err = worker.validator.Validate(ast)
-	if err != nil {
-		return buildErrorResponse(p.log.ErrorfErrWith("failed to validate WASM module: %v", []any{err}, "error", err))
+			err = worker.validator.Validate(a)
+			if err != nil {
+				return nil, fmt.Errorf("failed to validate WASM module: %v", err)
+			}
+
+			p.cache.Set(fnName, a)
+			return a, nil
+		})
+
+		if err != nil {
+			buildErrorResponse(p.log.ErrorfErrWith(err.Error(), []any{}, "error", err))
+		}
+
+		ast = a.(*wasmedge.AST)
 	}
 
 	p.log.Debug("Instantiating module")
@@ -86,7 +117,7 @@ func (p *WasmedgeExecutorPool) doInvoke(worker *wasmedgeExecutor, fnBuffer []byt
 	mallocFunc := mod.FindFunction("malloc")
 	freeFunc := mod.FindFunction("free")
 	if initFunc == nil || mallocFunc == nil || freeFunc == nil {
-		return buildErrorResponse(p.log.ErrorfErrWith("module does not export _initialize/malloc/free; ensure your TinyGo build exports them: %v", []any{err}, "error", err))
+		return buildErrorResponse(p.log.ErrorfErr("module does not export _initialize/malloc/free; ensure your TinyGo build exports them", []any{}))
 	}
 
 	p.log.Debug("Calling func _initialize")
@@ -165,8 +196,6 @@ func (p *WasmedgeExecutorPool) doInvoke(worker *wasmedgeExecutor, fnBuffer []byt
 		return buildErrorResponse(p.log.ErrorfErrWith("Failed to unmarshal wasm response: %v", []any{err}, "error", err))
 	}
 
-	ast.Release()
-	mod.Release()
 	p.log.Info("Ending WASM function execution")
 	return wasmResp
 }
