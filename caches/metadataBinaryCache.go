@@ -57,8 +57,8 @@ func NewMetadataBinaryCache(config MetadataBinaryCacheConfig, log logger.Logger)
 		return nil, err
 	}
 
-	binCache, err := NewBaseCacheWithEviction(config.Size, config.Ttl, func(key string, item CacheItem[model.FunctionMetadata]) {
-		_ = os.Remove(filepath.Join(config.BinDir, item.Value.Name+"@"+item.Value.Version))
+	binCache, err := NewBaseCacheWithEviction(config.Size, config.Ttl, func(key string, item model.FunctionMetadata) {
+		_ = os.Remove(filepath.Join(config.BinDir, item.Name+"@"+item.Version))
 	})
 	if err != nil {
 		return nil, err

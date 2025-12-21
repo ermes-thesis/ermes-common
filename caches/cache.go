@@ -92,8 +92,13 @@ func NewBaseCache[T any](size int, ttl time.Duration) (*BaseCache[T], error) {
 // Returns:
 //   - *BaseCache[T]: the newly created cache
 //   - error: non-nil if the cache could not be created
-func NewBaseCacheWithEviction[T any](size int, ttl time.Duration, evictFn func(string, CacheItem[T])) (*BaseCache[T], error) {
-	cache, err := lru.NewWithEvict[string, CacheItem[T]](size, evictFn)
+func NewBaseCacheWithEviction[T any](size int, ttl time.Duration, onEvict func(string, T)) (*BaseCache[T], error) {
+	internalEvict := func(key string, item CacheItem[T]) {
+		if onEvict != nil {
+			onEvict(key, item.Value)
+		}
+	}
+	cache, err := lru.NewWithEvict[string, CacheItem[T]](size, internalEvict)
 	if err != nil {
 		return nil, err
 	}
