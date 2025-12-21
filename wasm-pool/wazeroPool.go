@@ -25,7 +25,7 @@ type WazeroExecutorPool struct {
 	log       logger.Logger
 	workers   chan struct{}
 	withCache bool
-	cache     *caches.BaseCache[wazero.CompiledModule]
+	cache     *caches.BaseCache[*RefCountedItem[wazero.CompiledModule]]
 	group     singleflight.Group
 	timeout   time.Duration
 }
@@ -61,9 +61,13 @@ func NewWazeroExecutorPool(cfg Config, ctx context.Context, log logger.Logger) *
 		timeout: cfg.Timeout,
 	}
 
-	cache, err := caches.NewBaseCacheWithEviction[wazero.CompiledModule](2, 0, func(key string, mod wazero.CompiledModule) {
-		_ = mod.Close(pool.ctx)
-		log.Evalf("evicted key: %s", key)
+	cache, err := caches.NewBaseCacheWithEviction[*RefCountedItem[wazero.CompiledModule]](2, 0, func(key string, value *RefCountedItem[wazero.CompiledModule]) {
+		e := value.Release()
+		if e != nil {
+			log.ErrorfWith("Failed to release cache item: %v", []any{e}, "error", e)
+			return
+		}
+		log.Debugf("evicted key: %s", key)
 	})
 	if err != nil {
 		log.Errorf("Failed to instantiate cache with Eviction: %v", err)
@@ -111,30 +115,40 @@ func (p *WazeroExecutorPool) doInvoke(fnName string, fnBuffer []byte, entrypoint
 	//
 	// A solution to this problem is to implement a custom LRU cache, allowing us to keep track of the different modules used over
 	// time and call Close() on the modules used least recently.
-	var compiledMod wazero.CompiledModule
-	if mod, found := p.cache.Get(fnName); found {
-		p.log.Debug("WASM module found in cache")
-		compiledMod = mod
-	} else {
-		module, err, _ := p.group.Do(fnName, func() (interface{}, error) {
-			p.log.Debug("WASM module not found in cache, compiling new module")
+	var compiledMod *RefCountedItem[wazero.CompiledModule]
+	for {
+		if mod, found := p.cache.Get(fnName); found {
+			p.log.Debug("WASM module found in cache")
+			compiledMod = mod
+		} else {
+			module, err, _ := p.group.Do(fnName, func() (interface{}, error) {
+				p.log.Debug("WASM module not found in cache, compiling new module")
 
-			m, err := runtime.CompileModule(p.ctx, fnBuffer)
+				m, err := runtime.CompileModule(p.ctx, fnBuffer)
+				if err != nil {
+					return nil, fmt.Errorf("Failed to compile module: %v", err)
+				}
+
+				rcm := NewRefCountedItem(m, func(module wazero.CompiledModule) error {
+					return module.Close(p.ctx)
+				})
+				p.cache.Set(fnName, rcm)
+				return rcm, nil
+			})
+
 			if err != nil {
-				return nil, fmt.Errorf("Failed to compile module: %v", err)
+				return buildErrorResponse(p.log.ErrorfErrWith(err.Error(), []any{}, "error", err))
 			}
-
-			p.cache.Set(fnName, m)
-			return m, nil
-		})
-
-		if err != nil {
-			return buildErrorResponse(p.log.ErrorfErrWith(err.Error(), []any{}, "error", err))
+			compiledMod = module.(*RefCountedItem[wazero.CompiledModule])
 		}
-		compiledMod = module.(wazero.CompiledModule)
-	}
 
-	instance, err := runtime.InstantiateModule(p.ctx, compiledMod, p.modConfig.WithName(uuid.NewString()))
+		if compiledMod.Acquire() {
+			break
+		}
+	}
+	defer compiledMod.Release()
+
+	instance, err := runtime.InstantiateModule(p.ctx, compiledMod.item, p.modConfig.WithName(uuid.NewString()))
 	if err != nil {
 		return buildErrorResponse(p.log.ErrorfErrWith("failed to instantiate module: %v", []any{err}, "error", err))
 	}

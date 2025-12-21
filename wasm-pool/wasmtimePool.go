@@ -20,7 +20,7 @@ type WasmtimeExecutorPool struct {
 	isAot   bool
 	log     logger.Logger
 	timeout time.Duration
-	cache   *caches.BaseCache[*wasmtime.Module]
+	cache   *caches.BaseCache[*RefCountedItem[*wasmtime.Module]]
 	group   singleflight.Group
 }
 
@@ -48,9 +48,13 @@ func NewWasmtimeExecutorPool(cfg Config, log logger.Logger) *WasmtimeExecutorPoo
 		log.Errorf("Failed to define WASI in linker: %v", err)
 	}
 
-	cache, err := caches.NewBaseCacheWithEviction[*wasmtime.Module](2, 0, func(key string, mod *wasmtime.Module) {
-		mod.Close()
-		log.Evalf("evicted key: %s", key)
+	cache, err := caches.NewBaseCacheWithEviction[*RefCountedItem[*wasmtime.Module]](2, 0, func(key string, value *RefCountedItem[*wasmtime.Module]) {
+		e := value.Release()
+		if e != nil {
+			log.ErrorfWith("Failed to release cache item: %v", []any{e}, "error", e)
+			return
+		}
+		log.Debugf("evicted key: %s", key)
 	})
 	if err != nil {
 		log.Errorf("Failed to create cache: %v", err)
@@ -98,37 +102,51 @@ func (p *WasmtimeExecutorPool) doInvoke(fnName string, fnBuffer []byte, entrypoi
 	defer store.Close()
 
 	p.log.Debug("Loading WASM module")
-	var module *wasmtime.Module
+	var module *RefCountedItem[*wasmtime.Module]
 	var err error
-	if p.isAot {
-		module, err = wasmtime.NewModuleDeserialize(p.linker.Engine, fnBuffer)
-		if err != nil {
-			return buildErrorResponse(p.log.ErrorfErrWith("failed to load wasm file: %v", []any{err}, "error", err))
-		}
-	} else {
+
+	for {
 		if cachedModule, found := p.cache.Get(fnName); found {
 			p.log.Debug("WASM module found in cache")
 			module = cachedModule
 		} else {
 			mod, err, _ := p.group.Do(fnName, func() (interface{}, error) {
 				p.log.Debug("WASM module not found in cache, compiling new module")
-				module, err = wasmtime.NewModule(p.linker.Engine, fnBuffer)
-				if err != nil {
-					return nil, err
+
+				var m *wasmtime.Module
+				var e error
+				if p.isAot {
+					m, e = wasmtime.NewModuleDeserialize(p.linker.Engine, fnBuffer)
+				} else {
+					m, e = wasmtime.NewModule(p.linker.Engine, fnBuffer)
+				}
+				if e != nil {
+					return nil, fmt.Errorf("failed to load WASM file: %v", e)
 				}
 
-				p.cache.Set(fnName, module)
-				return module, nil
+				rcm := NewRefCountedItem(m, func(module *wasmtime.Module) error {
+					module.Close()
+					return nil
+				})
+				p.cache.Set(fnName, rcm)
+				return rcm, nil
 			})
 			if err != nil {
-				return buildErrorResponse(p.log.ErrorfErrWith("failed to load wasm file: %v", []any{err}, "error", err))
+				return buildErrorResponse(p.log.ErrorfErrWith(err.Error(), []any{}, "error", err))
 			}
-			module = mod.(*wasmtime.Module)
+			module = mod.(*RefCountedItem[*wasmtime.Module])
 		}
+
+		if module.Acquire() {
+			break
+		}
+
+		p.log.Warnf("Race condition: Module evicted during retrieval. Retrying...")
 	}
+	defer module.Release()
 
 	p.log.Debug("Instantiating module")
-	instance, err := p.linker.Instantiate(store, module)
+	instance, err := p.linker.Instantiate(store, module.item)
 	if err != nil {
 		return buildErrorResponse(p.log.ErrorfErrWith("failed to instantiate module: %v", []any{err}, "error", err))
 	}

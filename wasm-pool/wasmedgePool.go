@@ -19,7 +19,7 @@ type WasmedgeExecutorPool struct {
 	hostFns *wasmedge.Module
 	workers chan *wasmedgeExecutor
 	timeout time.Duration
-	cache   *caches.BaseCache[*wasmedge.AST]
+	cache   *caches.BaseCache[*RefCountedItem[*wasmedge.AST]]
 	group   singleflight.Group
 	log     logger.Logger
 }
@@ -38,9 +38,13 @@ func NewWasmedgeExecutorPool(cfg Config, log logger.Logger) *WasmedgeExecutorPoo
 		//[]string{".:./sandbox"},
 	)
 
-	cache, err := caches.NewBaseCacheWithEviction[*wasmedge.AST](3, 0, func(key string, ast *wasmedge.AST) {
-		ast.Release()
-		log.Evalf("evicted key: %s", key)
+	cache, err := caches.NewBaseCacheWithEviction[*RefCountedItem[*wasmedge.AST]](2, 0, func(key string, ast *RefCountedItem[*wasmedge.AST]) {
+		err := ast.Release()
+		if err != nil {
+			log.ErrorfWith("Failed to release cache item: %v", []any{err}, "error", err)
+			return
+		}
+		log.Debugf("evicted key: %s", key)
 	})
 	if err != nil {
 		log.Errorf("Failed to create cache: %v", err)
@@ -78,36 +82,51 @@ func (p *WasmedgeExecutorPool) Invoke(fnName string, fnBuffer []byte, entrypoint
 func (p *WasmedgeExecutorPool) doInvoke(worker *wasmedgeExecutor, fnName string, fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse {
 	p.log.Info("Starting WASM function execution")
 
-	var ast *wasmedge.AST
-	if astCached, found := p.cache.Get(fnName); found {
-		p.log.Debug("WASM module found in cache")
-		ast = astCached
-	} else {
-		a, err, _ := p.group.Do(fnName, func() (interface{}, error) {
-			p.log.Debug("WASM module not found in cache, compiling new module")
-			a, err := worker.loader.LoadBuffer(fnBuffer)
+	p.log.Debug("Loading WASM module")
+
+	var ast *RefCountedItem[*wasmedge.AST]
+	var err error
+
+	for {
+		if astCached, found := p.cache.Get(fnName); found {
+			p.log.Debug("WASM module found in cache")
+			ast = astCached
+		} else {
+			a, err, _ := p.group.Do(fnName, func() (interface{}, error) {
+				p.log.Debug("WASM module not found in cache, compiling new module")
+				a, err := worker.loader.LoadBuffer(fnBuffer)
+				if err != nil {
+					return nil, fmt.Errorf("failed to load wasm file: %v", err)
+				}
+
+				err = worker.validator.Validate(a)
+				if err != nil {
+					return nil, fmt.Errorf("failed to validate WASM module: %v", err)
+				}
+
+				rcm := NewRefCountedItem(a, func(ast *wasmedge.AST) error {
+					ast.Release()
+					return nil
+				})
+				p.cache.Set(fnName, rcm)
+				return rcm, nil
+			})
+
 			if err != nil {
-				return nil, fmt.Errorf("failed to load wasm file: %v", err)
+				buildErrorResponse(p.log.ErrorfErrWith(err.Error(), []any{}, "error", err))
 			}
 
-			err = worker.validator.Validate(a)
-			if err != nil {
-				return nil, fmt.Errorf("failed to validate WASM module: %v", err)
-			}
-
-			p.cache.Set(fnName, a)
-			return a, nil
-		})
-
-		if err != nil {
-			buildErrorResponse(p.log.ErrorfErrWith(err.Error(), []any{}, "error", err))
+			ast = a.(*RefCountedItem[*wasmedge.AST])
 		}
 
-		ast = a.(*wasmedge.AST)
+		if ast.Acquire() {
+			break
+		}
 	}
+	defer ast.Release()
 
 	p.log.Debug("Instantiating module")
-	mod, err := worker.exec.Instantiate(worker.store, ast)
+	mod, err := worker.exec.Instantiate(worker.store, ast.item)
 	if err != nil {
 		return buildErrorResponse(p.log.ErrorfErrWith("failed to instantiate module: %v", []any{err}, "error", err))
 	}

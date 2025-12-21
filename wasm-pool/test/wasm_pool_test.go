@@ -142,12 +142,34 @@ func runConcurrentTest(t *testing.T, pool wasm.ExecutorPool) {
 	}
 
 	wg := sync.WaitGroup{}
-	wg.Add(200)
+	wg.Add(600)
 	for i := 0; i < 200; i++ {
 		go func() {
 			defer wg.Done()
 
 			resp := pool.Invoke("fun", wasmBuffer, "authEntry", []byte("token"))
+			fmt.Println("Auth function:", resp.Response, resp.HttpCode)
+
+			if resp.HttpCode != 200 {
+				t.Errorf("invoke function failed: %s", resp.Response)
+				return
+			}
+		}()
+		go func() {
+			defer wg.Done()
+
+			resp := pool.Invoke("fun2", wasmBuffer, "authEntry", []byte("token"))
+			fmt.Println("Auth function:", resp.Response, resp.HttpCode)
+
+			if resp.HttpCode != 200 {
+				t.Errorf("invoke function failed: %s", resp.Response)
+				return
+			}
+		}()
+		go func() {
+			defer wg.Done()
+
+			resp := pool.Invoke("fun3", wasmBuffer, "authEntry", []byte("token"))
 			fmt.Println("Auth function:", resp.Response, resp.HttpCode)
 
 			if resp.HttpCode != 200 {
