@@ -5,20 +5,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ermes-thesis/ermes-common/caches"
-	"golang.org/x/sync/singleflight"
-	"os"
-	"time"
-
 	"github.com/ermes-thesis/ermes-common/logger"
 	"github.com/ermes-thesis/ermes-common/model"
 	"github.com/second-state/WasmEdge-go/wasmedge"
+	"golang.org/x/sync/singleflight"
+	"os"
 )
 
 type WasmedgeExecutorPool struct {
 	wasi    *wasmedge.Module
 	hostFns *wasmedge.Module
 	workers chan *wasmedgeExecutor
-	timeout time.Duration
+	cfg     Config
 	cache   *caches.BaseCache[*RefCountedItem[*wasmedge.AST]]
 	group   singleflight.Group
 	log     logger.Logger
@@ -38,7 +36,7 @@ func NewWasmedgeExecutorPool(cfg Config, log logger.Logger) *WasmedgeExecutorPoo
 		//[]string{".:./sandbox"},
 	)
 
-	cache, err := caches.NewBaseCacheWithEviction[*RefCountedItem[*wasmedge.AST]](2, 0, func(key string, ast *RefCountedItem[*wasmedge.AST]) {
+	cache, err := caches.NewBaseCacheWithEviction[*RefCountedItem[*wasmedge.AST]](cfg.CacheSize, 0, func(key string, ast *RefCountedItem[*wasmedge.AST]) {
 		err := ast.Release()
 		if err != nil {
 			log.ErrorfWith("Failed to release cache item: %v", []any{err}, "error", err)
@@ -53,7 +51,7 @@ func NewWasmedgeExecutorPool(cfg Config, log logger.Logger) *WasmedgeExecutorPoo
 	pool := &WasmedgeExecutorPool{
 		workers: make(chan *wasmedgeExecutor, cfg.PoolSize),
 		log:     log,
-		timeout: cfg.Timeout,
+		cfg:     cfg,
 		wasi:    wasi,
 		cache:   cache,
 	}
@@ -71,7 +69,7 @@ func (p *WasmedgeExecutorPool) Invoke(fnName string, fnBuffer []byte, entrypoint
 			p.workers <- worker
 		}()
 		return p.doInvoke(worker, fnName, fnBuffer, entrypoint, input...)
-	case <-getTimeoutChannel(p.timeout):
+	case <-getTimeoutChannel(p.cfg.Timeout):
 		return model.WasmResponse{
 			HttpCode: 503,
 			Response: "no available wasm executors in pool",
@@ -84,49 +82,66 @@ func (p *WasmedgeExecutorPool) doInvoke(worker *wasmedgeExecutor, fnName string,
 
 	p.log.Debug("Loading WASM module")
 
-	var ast *RefCountedItem[*wasmedge.AST]
-	var err error
+	var ast *wasmedge.AST
 
-	for {
-		if astCached, found := p.cache.Get(fnName); found {
-			p.log.Debug("WASM module found in cache")
-			ast = astCached
-		} else {
-			a, err, _ := p.group.Do(fnName, func() (interface{}, error) {
-				p.log.Debug("WASM module not found in cache, compiling new module")
-				a, err := worker.loader.LoadBuffer(fnBuffer)
-				if err != nil {
-					return nil, fmt.Errorf("failed to load wasm file: %v", err)
-				}
+	if p.cfg.WithCache {
+		var rcm *RefCountedItem[*wasmedge.AST]
+		for {
+			if astCached, found := p.cache.Get(fnName); found {
+				p.log.Debug("WASM module found in cache")
+				rcm = astCached
+			} else {
+				a, err, _ := p.group.Do(fnName, func() (interface{}, error) {
+					p.log.Debug("WASM module not found in cache, compiling new module")
+					a, err := worker.loader.LoadBuffer(fnBuffer)
+					if err != nil {
+						return nil, fmt.Errorf("failed to load wasm file: %v", err)
+					}
 
-				err = worker.validator.Validate(a)
-				if err != nil {
-					return nil, fmt.Errorf("failed to validate WASM module: %v", err)
-				}
+					err = worker.validator.Validate(a)
+					if err != nil {
+						return nil, fmt.Errorf("failed to validate WASM module: %v", err)
+					}
 
-				rcm := NewRefCountedItem(a, func(ast *wasmedge.AST) error {
-					ast.Release()
-					return nil
+					rcm := NewRefCountedItem(a, func(ast *wasmedge.AST) error {
+						ast.Release()
+						return nil
+					})
+					p.cache.Set(fnName, rcm)
+					return rcm, nil
 				})
-				p.cache.Set(fnName, rcm)
-				return rcm, nil
-			})
 
-			if err != nil {
-				buildErrorResponse(p.log.ErrorfErrWith(err.Error(), []any{}, "error", err))
+				if err != nil {
+					return buildErrorResponse(p.log.ErrorfErrWith(err.Error(), []any{}, "error", err))
+				}
+
+				rcm = a.(*RefCountedItem[*wasmedge.AST])
 			}
 
-			ast = a.(*RefCountedItem[*wasmedge.AST])
+			if rcm.Acquire() {
+				break
+			}
+		}
+		ast = rcm.item
+		defer rcm.Release()
+	} else {
+		p.log.Debug("WASM module not found in cache, compiling new module")
+		a, err := worker.loader.LoadBuffer(fnBuffer)
+		if err != nil {
+			return buildErrorResponse(p.log.ErrorfErrWith("failed to load wasm file: %v", []any{err}, "error", err))
 		}
 
-		if ast.Acquire() {
-			break
+		err = worker.validator.Validate(a)
+		if err != nil {
+			return buildErrorResponse(p.log.ErrorfErrWith("failed to validate WASM module: %v", []any{err}, "error", err))
 		}
+
+		ast = a
+		defer ast.Release()
 	}
-	defer ast.Release()
 
 	p.log.Debug("Instantiating module")
-	mod, err := worker.exec.Instantiate(worker.store, ast.item)
+	mod, err := worker.exec.Instantiate(worker.store, ast)
 	if err != nil {
 		return buildErrorResponse(p.log.ErrorfErrWith("failed to instantiate module: %v", []any{err}, "error", err))
 	}

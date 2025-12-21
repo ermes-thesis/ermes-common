@@ -12,6 +12,7 @@ type Config struct {
 	PoolSize  int           `yaml:"poolSize"`
 	Timeout   time.Duration `yaml:"timeout"`
 	WithCache bool          `yaml:"withCache"`
+	CacheSize int           `yaml:"cacheSize"`
 	IsAot     bool          `yaml:"isAot"`
 }
 

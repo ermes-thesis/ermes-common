@@ -4,22 +4,19 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"os"
-	"time"
-
 	"github.com/bytecodealliance/wasmtime-go/v37"
 	"github.com/ermes-thesis/ermes-common/caches"
 	"github.com/ermes-thesis/ermes-common/logger"
 	"github.com/ermes-thesis/ermes-common/model"
 	"golang.org/x/sync/singleflight"
+	"os"
 )
 
 type WasmtimeExecutorPool struct {
 	linker  *wasmtime.Linker
 	workers chan struct{}
-	isAot   bool
+	cfg     Config
 	log     logger.Logger
-	timeout time.Duration
 	cache   *caches.BaseCache[*RefCountedItem[*wasmtime.Module]]
 	group   singleflight.Group
 }
@@ -31,24 +28,27 @@ func NewWasmtimeExecutorPool(cfg Config, log logger.Logger) *WasmtimeExecutorPoo
 
 	config := wasmtime.NewConfig()
 
-	var err error
-	if cfg.WithCache {
-		err = config.CacheConfigLoadDefault()
-		if err != nil {
-			log.Errorf("Failed to load Wasmtime cache config: %v", err)
-		}
-	}
+	// Wasmtime own cache on filesystem. Has been removed since now we have our custom in-memory cache. But it should not be a problem
+	// to add it again in theory
+
+	//var err error
+	//if cfg.WithCache {
+	//	err = config.CacheConfigLoadDefault()
+	//	if err != nil {
+	//		log.Errorf("Failed to load Wasmtime cache config: %v", err)
+	//	}
+	//}
 
 	engine := wasmtime.NewEngineWithConfig(config)
 
 	// Create a linker with WASI functions defined within it
 	linker := wasmtime.NewLinker(engine)
-	err = linker.DefineWasi()
+	err := linker.DefineWasi()
 	if err != nil {
 		log.Errorf("Failed to define WASI in linker: %v", err)
 	}
 
-	cache, err := caches.NewBaseCacheWithEviction[*RefCountedItem[*wasmtime.Module]](2, 0, func(key string, value *RefCountedItem[*wasmtime.Module]) {
+	cache, err := caches.NewBaseCacheWithEviction[*RefCountedItem[*wasmtime.Module]](cfg.CacheSize, 0, func(key string, value *RefCountedItem[*wasmtime.Module]) {
 		e := value.Release()
 		if e != nil {
 			log.ErrorfWith("Failed to release cache item: %v", []any{e}, "error", e)
@@ -63,9 +63,8 @@ func NewWasmtimeExecutorPool(cfg Config, log logger.Logger) *WasmtimeExecutorPoo
 	pool := &WasmtimeExecutorPool{
 		linker:  linker,
 		workers: make(chan struct{}, cfg.PoolSize),
-		isAot:   cfg.IsAot,
+		cfg:     cfg,
 		log:     log,
-		timeout: cfg.Timeout,
 		cache:   cache,
 	}
 
@@ -83,7 +82,7 @@ func (p *WasmtimeExecutorPool) Invoke(fnName string, fnBuffer []byte, entrypoint
 			p.workers <- worker
 		}()
 		return p.doInvoke(fnName, fnBuffer, entrypoint, input...)
-	case <-getTimeoutChannel(p.timeout):
+	case <-getTimeoutChannel(p.cfg.Timeout):
 		p.log.Error("Local execution failed. The WASM pool was too busy and there weren't any WASM executor available")
 		return model.WasmResponse{
 			HttpCode: 503,
@@ -102,51 +101,70 @@ func (p *WasmtimeExecutorPool) doInvoke(fnName string, fnBuffer []byte, entrypoi
 	defer store.Close()
 
 	p.log.Debug("Loading WASM module")
-	var module *RefCountedItem[*wasmtime.Module]
-	var err error
+	var mod *wasmtime.Module
 
-	for {
-		if cachedModule, found := p.cache.Get(fnName); found {
-			p.log.Debug("WASM module found in cache")
-			module = cachedModule
-		} else {
-			mod, err, _ := p.group.Do(fnName, func() (interface{}, error) {
-				p.log.Debug("WASM module not found in cache, compiling new module")
+	if p.cfg.WithCache {
+		var module *RefCountedItem[*wasmtime.Module]
+		for {
+			if cachedModule, found := p.cache.Get(fnName); found {
+				p.log.Debug("WASM module found in cache")
+				module = cachedModule
+			} else {
+				rcm, err, _ := p.group.Do(fnName, func() (interface{}, error) {
+					p.log.Debug("WASM module not found in cache, compiling new module")
 
-				var m *wasmtime.Module
-				var e error
-				if p.isAot {
-					m, e = wasmtime.NewModuleDeserialize(p.linker.Engine, fnBuffer)
-				} else {
-					m, e = wasmtime.NewModule(p.linker.Engine, fnBuffer)
-				}
-				if e != nil {
-					return nil, fmt.Errorf("failed to load WASM file: %v", e)
-				}
+					var m *wasmtime.Module
+					var e error
+					if p.cfg.IsAot {
+						m, e = wasmtime.NewModuleDeserialize(p.linker.Engine, fnBuffer)
+					} else {
+						m, e = wasmtime.NewModule(p.linker.Engine, fnBuffer)
+					}
+					if e != nil {
+						return nil, fmt.Errorf("failed to load WASM file: %v", e)
+					}
 
-				rcm := NewRefCountedItem(m, func(module *wasmtime.Module) error {
-					module.Close()
-					return nil
+					rcm := NewRefCountedItem(m, func(module *wasmtime.Module) error {
+						module.Close()
+						return nil
+					})
+					p.cache.Set(fnName, rcm)
+					return rcm, nil
 				})
-				p.cache.Set(fnName, rcm)
-				return rcm, nil
-			})
-			if err != nil {
-				return buildErrorResponse(p.log.ErrorfErrWith(err.Error(), []any{}, "error", err))
+				if err != nil {
+					return buildErrorResponse(p.log.ErrorfErrWith(err.Error(), []any{}, "error", err))
+				}
+				module = rcm.(*RefCountedItem[*wasmtime.Module])
 			}
-			module = mod.(*RefCountedItem[*wasmtime.Module])
+
+			if module.Acquire() {
+				break
+			}
+
+			p.log.Warnf("Race condition: Module evicted during retrieval. Retrying...")
+		}
+		mod = module.item
+		defer module.Release()
+	} else {
+		p.log.Debug("WASM module not found in cache, compiling new module")
+
+		var m *wasmtime.Module
+		var err error
+		if p.cfg.IsAot {
+			m, err = wasmtime.NewModuleDeserialize(p.linker.Engine, fnBuffer)
+		} else {
+			m, err = wasmtime.NewModule(p.linker.Engine, fnBuffer)
+		}
+		if err != nil {
+			return buildErrorResponse(p.log.ErrorfErrWith("failed to load WASM file: %v", []any{err}, "error", err))
 		}
 
-		if module.Acquire() {
-			break
-		}
-
-		p.log.Warnf("Race condition: Module evicted during retrieval. Retrying...")
+		mod = m
+		defer mod.Close()
 	}
-	defer module.Release()
 
 	p.log.Debug("Instantiating module")
-	instance, err := p.linker.Instantiate(store, module.item)
+	instance, err := p.linker.Instantiate(store, mod)
 	if err != nil {
 		return buildErrorResponse(p.log.ErrorfErrWith("failed to instantiate module: %v", []any{err}, "error", err))
 	}
