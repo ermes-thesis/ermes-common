@@ -4,12 +4,14 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"github.com/bytecodealliance/wasmtime-go/v37"
+	"os"
+	"time"
+
+	"github.com/bytecodealliance/wasmtime-go/v40"
 	"github.com/ermes-thesis/ermes-common/caches"
 	"github.com/ermes-thesis/ermes-common/logger"
 	"github.com/ermes-thesis/ermes-common/model"
 	"golang.org/x/sync/singleflight"
-	"os"
 )
 
 type WasmtimeExecutorPool struct {
@@ -94,11 +96,16 @@ func (p *WasmtimeExecutorPool) Invoke(fnName string, fnBuffer []byte, entrypoint
 func (p *WasmtimeExecutorPool) doInvoke(fnName string, fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse {
 	p.log.Info("Starting WASM function execution")
 
+	t := time.Now()
 	store := wasmtime.NewStore(p.linker.Engine)
 	wasiConfig := wasmtime.NewWasiConfig()
 	store.SetWasi(wasiConfig)
 	wasiConfig.Close()
 	defer store.Close()
+	startUpDuration := time.Since(t)
+	if startUpDuration > time.Millisecond*20 {
+		p.log.Warnf("WASM store creation took too long: %v", startUpDuration)
+	}
 
 	p.log.Debug("Loading WASM module")
 	var mod *wasmtime.Module
@@ -163,8 +170,14 @@ func (p *WasmtimeExecutorPool) doInvoke(fnName string, fnBuffer []byte, entrypoi
 		defer mod.Close()
 	}
 
+	t = time.Now()
 	p.log.Debug("Instantiating module")
 	instance, err := p.linker.Instantiate(store, mod)
+	instantiateDuration := time.Since(t)
+	if instantiateDuration > time.Millisecond*20 {
+		p.log.Warnf("WASM module instantiation took too long: %v", instantiateDuration)
+	}
+
 	if err != nil {
 		return buildErrorResponse(p.log.ErrorfErrWith("failed to instantiate module: %v", []any{err}, "error", err))
 	}
@@ -192,7 +205,12 @@ func (p *WasmtimeExecutorPool) doInvoke(fnName string, fnBuffer []byte, entrypoi
 	}
 
 	p.log.Debug("Calling malloc")
+	t = time.Now()
 	allocateResult, err := mallocFunc.Call(store, int32(len(inputData)))
+	allocateDuration := time.Since(t)
+	if allocateDuration > time.Millisecond*20 {
+		p.log.Warnf("WASM malloc took too long: %v", allocateDuration)
+	}
 	if err != nil {
 		return buildErrorResponse(p.log.ErrorfErrWith("failed to execute malloc: %v", []any{err}, "error", err))
 	}
@@ -217,7 +235,12 @@ func (p *WasmtimeExecutorPool) doInvoke(fnName string, fnBuffer []byte, entrypoi
 	}
 
 	p.log.Debug("Running func")
+	t = time.Now()
 	entryResult, err := entrypointFn.Call(store, entryArgs...)
+	runDuration := time.Since(t)
+	if runDuration > time.Millisecond*20 {
+		p.log.Warnf("WASM function execution took too long: %v", runDuration)
+	}
 	if err != nil {
 		return buildErrorResponse(p.log.ErrorfErrWith("Failed execute entry function", []any{}, "error", err))
 	}
@@ -235,7 +258,12 @@ func (p *WasmtimeExecutorPool) doInvoke(fnName string, fnBuffer []byte, entrypoi
 
 	p.log.Debug("Freeing memory")
 	// Deallocate the buffers.
+	t = time.Now()
 	_, err = freeFunc.Call(store, ptr)
+	freeDuration := time.Since(t)
+	if freeDuration > time.Millisecond*20 {
+		p.log.Warnf("WASM free took too long: %v", freeDuration)
+	}
 	if err != nil {
 		return buildErrorResponse(p.log.ErrorfErrWith("Failed to free memory: %v", []any{err}, "error", err))
 	}

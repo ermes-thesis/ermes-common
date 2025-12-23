@@ -5,6 +5,9 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"os"
+	"time"
+
 	"github.com/ermes-thesis/ermes-common/caches"
 	"github.com/ermes-thesis/ermes-common/logger"
 	"github.com/ermes-thesis/ermes-common/model"
@@ -13,7 +16,6 @@ import (
 	"github.com/tetratelabs/wazero/api"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 	"golang.org/x/sync/singleflight"
-	"os"
 )
 
 type WazeroExecutorPool struct {
@@ -162,7 +164,13 @@ func (p *WazeroExecutorPool) doInvoke(fnName string, fnBuffer []byte, entrypoint
 		}
 	}
 
+	t := time.Now()
 	instance, err := runtime.InstantiateModule(p.ctx, compMod, p.modConfig.WithName(uuid.NewString()))
+	instantiateDuration := time.Since(t)
+	if instantiateDuration > time.Millisecond*20 {
+		p.log.Warnf("WASM module instantiation took too long: %v", instantiateDuration)
+	}
+
 	if err != nil {
 		return buildErrorResponse(p.log.ErrorfErrWith("failed to instantiate module: %v", []any{err}, "error", err))
 	}
@@ -197,7 +205,12 @@ func (p *WazeroExecutorPool) doInvoke(fnName string, fnBuffer []byte, entrypoint
 	}
 
 	p.log.Debug("Calling malloc")
+	t = time.Now()
 	allocateResult, err := mallocFunc.Call(p.ctx, api.EncodeI32(int32(len(inputData))))
+	allocateDuration := time.Since(t)
+	if allocateDuration > time.Millisecond*20 {
+		p.log.Warnf("WASM malloc took too long: %v", allocateDuration)
+	}
 	if err != nil {
 		return buildErrorResponse(p.log.ErrorfErrWith("failed to execute malloc: %v", []any{err}, "error", err))
 	}
@@ -223,7 +236,12 @@ func (p *WazeroExecutorPool) doInvoke(fnName string, fnBuffer []byte, entrypoint
 	}
 
 	p.log.Debug("Running func")
+	t = time.Now()
 	entryResult, err := entrypointFn.Call(p.ctx, entryArgs...)
+	runDuration := time.Since(t)
+	if runDuration > time.Millisecond*20 {
+		p.log.Warnf("WASM function execution took too long: %v", runDuration)
+	}
 	if err != nil {
 		return buildErrorResponse(p.log.ErrorfErrWith("Failed execute entry function", []any{}, "error", err))
 	}
@@ -245,7 +263,12 @@ func (p *WazeroExecutorPool) doInvoke(fnName string, fnBuffer []byte, entrypoint
 
 	p.log.Debug("Freeing memory")
 	// Deallocate the buffers.
+	t = time.Now()
 	_, err = freeFunc.Call(p.ctx, uint64(ptr))
+	freeDuration := time.Since(t)
+	if freeDuration > time.Millisecond*20 {
+		p.log.Warnf("WASM free took too long: %v", freeDuration)
+	}
 	if err != nil {
 		return buildErrorResponse(p.log.ErrorfErrWith("Failed to free memory: %v", []any{err}, "error", err))
 	}
