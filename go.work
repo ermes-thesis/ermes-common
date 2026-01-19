@@ -1,9 +1,9 @@
 go 1.24.0
 
 use (
+	caches
 	logger
 	model
-	wasm-pool
-	caches
 	utils
+	wasm-pool
 )
