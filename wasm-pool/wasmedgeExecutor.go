@@ -11,6 +11,7 @@ type wasmedgeExecutor struct {
 	loader    *wasmedge.Loader
 	validator *wasmedge.Validator
 	exec      *wasmedge.Executor
+	compiler  *wasmedge.Compiler
 }
 
 func newWasmedgeExecutor(wasi *wasmedge.Module, log logger.Logger) *wasmedgeExecutor {
@@ -19,6 +20,7 @@ func newWasmedgeExecutor(wasi *wasmedge.Module, log logger.Logger) *wasmedgeExec
 		loader:    wasmedge.NewLoader(),
 		validator: wasmedge.NewValidator(),
 		exec:      wasmedge.NewExecutor(),
+		compiler:  wasmedge.NewCompiler(),
 	}
 
 	err := e.exec.RegisterImport(e.store, wasi)
@@ -34,8 +36,9 @@ func (e *wasmedgeExecutor) Close() {
 	e.loader.Release()
 	e.validator.Release()
 	e.exec.Release()
+	e.compiler.Release()
 }
 
-func (e *wasmedgeExecutor) RegisterHostFns(extern *wasmedge.Module) error {
+func (e *wasmedgeExecutor) RegisterHostFunctions(extern *wasmedge.Module) error {
 	return e.exec.RegisterImport(e.store, extern)
 }

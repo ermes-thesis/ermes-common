@@ -15,48 +15,51 @@ import (
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
-	"golang.org/x/sync/singleflight"
 )
 
 type WazeroExecutorPool struct {
+	*WASPBase
 	runtime   wazero.Runtime
 	modConfig wazero.ModuleConfig
 	ctx       context.Context
-	log       logger.Logger
 	workers   chan struct{}
-	cfg       Config
 	cache     *caches.BaseCache[*RefCountedItem[wazero.CompiledModule]]
-	group     singleflight.Group
 }
 
-func NewWazeroExecutorPool(cfg Config, ctx context.Context, log logger.Logger) *WazeroExecutorPool {
+func NewWazeroExecutorPool(cfg WASPConfig, ctx context.Context, log logger.Logger) *WazeroExecutorPool {
 	if err := os.MkdirAll("./sandbox", os.ModePerm); err != nil {
 		log.Errorf("Failed to create sandbox directory: %v", err)
 	}
 
 	var config wazero.RuntimeConfig
-	if cfg.IsAot {
+
+	poolBase, err := NewWASPBase(cfg, log)
+	if err != nil {
+		log.Errorf("Failed to create WASM pool base: %v", err)
+	}
+
+	if cfg.RunMode == AOT {
 		config = wazero.NewRuntimeConfig().WithCompilationCache(wazero.NewCompilationCache())
 	} else {
-		config = wazero.NewRuntimeConfigInterpreter()
+		// Uncomment this if you want to run the wazero interpreter.
+		// config = wazero.NewRuntimeConfigInterpreter()
+		config = wazero.NewRuntimeConfig()
 	}
 
 	runtime := wazero.NewRuntimeWithConfig(ctx, config)
 
 	modConf := wazero.NewModuleConfig().
+		// WithStdout(os.Stdout). // Uncomment to enable printing to stdout from the WASM module
 		WithSysNanosleep()
 
 	wasi_snapshot_preview1.MustInstantiate(ctx, runtime)
 
 	pool := &WazeroExecutorPool{
+		WASPBase:  poolBase,
 		ctx:       ctx,
 		runtime:   runtime,
 		modConfig: modConf,
-		log:       log,
-		cfg:       cfg,
 		workers:   make(chan struct{}, cfg.PoolSize),
-		//stdOut:    stdOut,
-		//stdErr:    stdErr,
 	}
 
 	cache, err := caches.NewBaseCacheWithEviction[*RefCountedItem[wazero.CompiledModule]](cfg.CacheSize, 0, func(key string, value *RefCountedItem[wazero.CompiledModule]) {
@@ -78,13 +81,13 @@ func NewWazeroExecutorPool(cfg Config, ctx context.Context, log logger.Logger) *
 	return pool
 }
 
-func (p *WazeroExecutorPool) Invoke(fnName string, fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse {
+func (p *WazeroExecutorPool) InvokeFunction(fnName string, fnBinary []byte, entrypoint string, input ...[]byte) model.WasmResponse {
 	select {
 	case worker := <-p.workers:
 		defer func() {
 			p.workers <- worker
 		}()
-		return p.doInvoke(fnName, fnBuffer, entrypoint, input...)
+		return p.doInvokeFunction(fnName, fnBinary, entrypoint, input...)
 	case <-getTimeoutChannel(p.cfg.Timeout):
 		return model.WasmResponse{
 			HttpCode: 503,
@@ -93,7 +96,7 @@ func (p *WazeroExecutorPool) Invoke(fnName string, fnBuffer []byte, entrypoint s
 	}
 }
 
-func (p *WazeroExecutorPool) doInvoke(fnName string, fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse {
+func (p *WazeroExecutorPool) doInvokeFunction(fnName string, fnBinary []byte, entrypoint string, input ...[]byte) model.WasmResponse {
 	p.log.Info("Starting WASM function execution")
 	runtime := p.runtime
 
@@ -126,7 +129,7 @@ func (p *WazeroExecutorPool) doInvoke(fnName string, fnBuffer []byte, entrypoint
 				module, err, _ := p.group.Do(fnName, func() (interface{}, error) {
 					p.log.Debug("WASM module not found in cache, compiling new module")
 
-					m, err := runtime.CompileModule(p.ctx, fnBuffer)
+					m, err := runtime.CompileModule(p.ctx, fnBinary)
 					if err != nil {
 						return nil, fmt.Errorf("Failed to compile module: %v", err)
 					}
@@ -153,7 +156,7 @@ func (p *WazeroExecutorPool) doInvoke(fnName string, fnBuffer []byte, entrypoint
 	} else {
 		p.log.Debug("WASM module not found in cache, compiling new module")
 
-		m, err := runtime.CompileModule(p.ctx, fnBuffer)
+		m, err := runtime.CompileModule(p.ctx, fnBinary)
 		if err != nil {
 			return buildErrorResponse(p.log.ErrorfErrWith("Failed to compile module: %v", []any{err}, "error", err))
 		}
@@ -284,7 +287,7 @@ func (p *WazeroExecutorPool) doInvoke(fnName string, fnBuffer []byte, entrypoint
 	return wasmResp
 }
 
-func (p *WazeroExecutorPool) RegisterHostFns(fns map[string]any) error {
+func (p *WazeroExecutorPool) RegisterHostFunctions(fns map[string]any) error {
 	builder := p.runtime.NewHostModuleBuilder("extern")
 
 	for fnName, fn := range fns {

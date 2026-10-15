@@ -4,27 +4,32 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"math/rand"
+	"os"
+
 	"github.com/ermes-thesis/ermes-common/caches"
 	"github.com/ermes-thesis/ermes-common/logger"
 	"github.com/ermes-thesis/ermes-common/model"
 	"github.com/second-state/WasmEdge-go/wasmedge"
-	"golang.org/x/sync/singleflight"
-	"os"
 )
 
 type WasmedgeExecutorPool struct {
+	*WASPBase
 	wasi    *wasmedge.Module
 	hostFns *wasmedge.Module
 	workers chan *wasmedgeExecutor
-	cfg     Config
 	cache   *caches.BaseCache[*RefCountedItem[*wasmedge.AST]]
-	group   singleflight.Group
-	log     logger.Logger
 }
 
-func NewWasmedgeExecutorPool(cfg Config, log logger.Logger) *WasmedgeExecutorPool {
+func NewWasmedgeExecutorPool(cfg WASPConfig, log logger.Logger) *WasmedgeExecutorPool {
 	if err := os.MkdirAll("./sandbox", os.ModePerm); err != nil {
 		log.Errorf("Failed to create sandbox directory: %v", err)
+	}
+
+	poolBase, err := NewWASPBase(cfg, log)
+	if err != nil {
+		log.Errorf("Failed to create WASP base: %v", err)
+		return nil
 	}
 
 	wasmedge.SetLogErrorLevel()
@@ -49,11 +54,10 @@ func NewWasmedgeExecutorPool(cfg Config, log logger.Logger) *WasmedgeExecutorPoo
 	}
 
 	pool := &WasmedgeExecutorPool{
-		workers: make(chan *wasmedgeExecutor, cfg.PoolSize),
-		log:     log,
-		cfg:     cfg,
-		wasi:    wasi,
-		cache:   cache,
+		WASPBase: poolBase,
+		workers:  make(chan *wasmedgeExecutor, cfg.PoolSize),
+		wasi:     wasi,
+		cache:    cache,
 	}
 
 	for i := 0; i < cfg.PoolSize; i++ {
@@ -62,13 +66,13 @@ func NewWasmedgeExecutorPool(cfg Config, log logger.Logger) *WasmedgeExecutorPoo
 	return pool
 }
 
-func (p *WasmedgeExecutorPool) Invoke(fnName string, fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse {
+func (p *WasmedgeExecutorPool) InvokeFunction(fnName string, fnBinary []byte, entrypoint string, input ...[]byte) model.WasmResponse {
 	select {
 	case worker := <-p.workers:
 		defer func() {
 			p.workers <- worker
 		}()
-		return p.doInvoke(worker, fnName, fnBuffer, entrypoint, input...)
+		return p.doInvokeFunction(worker, fnName, fnBinary, entrypoint, input...)
 	case <-getTimeoutChannel(p.cfg.Timeout):
 		return model.WasmResponse{
 			HttpCode: 503,
@@ -77,12 +81,13 @@ func (p *WasmedgeExecutorPool) Invoke(fnName string, fnBuffer []byte, entrypoint
 	}
 }
 
-func (p *WasmedgeExecutorPool) doInvoke(worker *wasmedgeExecutor, fnName string, fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse {
+func (p *WasmedgeExecutorPool) doInvokeFunction(worker *wasmedgeExecutor, fnName string, fnBinary []byte, entrypoint string, input ...[]byte) model.WasmResponse {
 	p.log.Info("Starting WASM function execution")
 
 	p.log.Debug("Loading WASM module")
 
 	var ast *wasmedge.AST
+	var err error
 
 	if p.cfg.WithCache == CacheHybrid {
 		var rcm *RefCountedItem[*wasmedge.AST]
@@ -93,7 +98,30 @@ func (p *WasmedgeExecutorPool) doInvoke(worker *wasmedgeExecutor, fnName string,
 			} else {
 				a, err, _ := p.group.Do(fnName, func() (interface{}, error) {
 					p.log.Debug("WASM module not found in cache, compiling new module")
-					a, err := worker.loader.LoadBuffer(fnBuffer)
+
+					if p.cfg.RunMode == AOT {
+						p.log.Debug("Compile the WASM binary in AOT mode")
+
+						if err != nil {
+							return nil, fmt.Errorf("failed to create temporary directory for AOT compilation: %v", err)
+						}
+
+						err = worker.compiler.CompileBuffer(fnBinary, "./funcBinary-aot-wasmedge.wasm")
+						if err != nil {
+							return nil, fmt.Errorf("failed to compile wasm file in AOT mode: %v", err)
+						}
+						fnBinary, err = os.ReadFile("./funcBinary-aot-wasmedge.wasm")
+						if err != nil {
+							return nil, fmt.Errorf("failed to read AOT compiled wasm file: %v", err)
+						}
+						// Remove the AOT compiled file after reading it, as it will be cached as a module in memory
+						err = os.Remove("./funcBinary-aot-wasmedge.wasm")
+						if err != nil {
+							return nil, fmt.Errorf("failed to remove AOT compiled wasm file: %v", err)
+						}
+					}
+
+					a, err := worker.loader.LoadBuffer(fnBinary)
 					if err != nil {
 						return nil, fmt.Errorf("failed to load wasm file: %v", err)
 					}
@@ -125,8 +153,49 @@ func (p *WasmedgeExecutorPool) doInvoke(worker *wasmedgeExecutor, fnName string,
 		ast = rcm.item
 		defer rcm.Release()
 	} else {
-		p.log.Debug("WASM module not found in cache, compiling new module")
-		a, err := worker.loader.LoadBuffer(fnBuffer)
+		p.log.Debug("Cache not enabled, compiling module without caching")
+
+		if p.cfg.RunMode == AOT {
+			p.log.Debug("Compile the WASM binary in AOT mode")
+
+			// Create a unique temporary directory by using a randomly generated suffix
+			// TODO: be careful with high concurrency
+
+			tempDirName := fmt.Sprintf("./wasm-aot-%s-%d", fnName, rand.Int63())
+			err := os.Mkdir(tempDirName, os.ModePerm)
+
+			if err != nil {
+				return buildErrorResponse(p.log.ErrorfErrWith("failed to create temporary directory for AOT compilation: %v", []any{err}, "error", err))
+			}
+
+			// Put the wasm file inside the temporary directory.
+			err = os.WriteFile(tempDirName+"/funcBinary.wasm", fnBinary, 0644)
+			if err != nil {
+				return buildErrorResponse(p.log.ErrorfErrWith("failed to write wasm file to temporary directory: %v", []any{err}, "error", err))
+			}
+
+			err = worker.compiler.Compile(tempDirName+"/funcBinary.wasm", tempDirName+"/funcBinary-aot-wasmedge.wasm")
+			if err != nil {
+				return buildErrorResponse(p.log.ErrorfErrWith("failed to compile wasm file in AOT mode: %v", []any{err}, "error", err))
+			}
+			fnBinary, err = os.ReadFile(tempDirName + "/funcBinary-aot-wasmedge.wasm")
+			if err != nil {
+				return buildErrorResponse(p.log.ErrorfErrWith("failed to read AOT compiled wasm file: %v", []any{err}, "error", err))
+			}
+			// Remove the AOT compiled file after reading it, as it will be cached as a module in memory
+			err = os.Remove(tempDirName + "/funcBinary-aot-wasmedge.wasm")
+			if err != nil {
+				return buildErrorResponse(p.log.ErrorfErrWith("failed to remove AOT compiled wasm file: %v", []any{err}, "error", err))
+			}
+
+			// Remove the temporary directory
+			err = os.RemoveAll(tempDirName)
+			if err != nil {
+				return buildErrorResponse(p.log.ErrorfErrWith("failed to remove temporary directory: %v", []any{err}, "error", err))
+			}
+		}
+
+		a, err := worker.loader.LoadBuffer(fnBinary)
 		if err != nil {
 			return buildErrorResponse(p.log.ErrorfErrWith("failed to load wasm file: %v", []any{err}, "error", err))
 		}
@@ -235,7 +304,7 @@ func (p *WasmedgeExecutorPool) doInvoke(worker *wasmedgeExecutor, fnName string,
 	return wasmResp
 }
 
-func (p *WasmedgeExecutorPool) RegisterHostFns(fns map[string]any) error {
+func (p *WasmedgeExecutorPool) RegisterHostFunctions(fns map[string]any) error {
 	externMod := wasmedge.NewModule("extern")
 
 	for fnName, fn := range fns {
@@ -249,7 +318,7 @@ func (p *WasmedgeExecutorPool) RegisterHostFns(fns map[string]any) error {
 	p.hostFns = externMod
 	for i := 0; i < cap(p.workers); i++ {
 		w := <-p.workers
-		err := w.RegisterHostFns(externMod)
+		err := w.RegisterHostFunctions(externMod)
 		if err != nil {
 			p.log.Error("RegisterHostFns failed", "fns", fmt.Sprintf("%+v", fns), "error", err)
 			return err
