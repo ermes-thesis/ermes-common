@@ -5,13 +5,30 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ermes-thesis/ermes-common/logger"
 	"github.com/ermes-thesis/ermes-common/model"
+	"golang.org/x/sync/singleflight"
 )
 
-type ExecutorPool interface {
-	RegisterHostFns(fns map[string]any) error
-	Invoke(fnName string, fnBuffer []byte, entrypoint string, input ...[]byte) model.WasmResponse
+type WASP interface {
+	InvokeFunction(fnName string, fnBinary []byte, entrypoint string, input ...[]byte) model.WasmResponse
+	RegisterHostFunctions(fns map[string]any) error
 	Close()
+}
+
+type WASPBase struct {
+	cfg   WASPConfig
+	log   logger.Logger
+	group singleflight.Group
+}
+
+func NewWASPBase(cfg WASPConfig, log logger.Logger) (*WASPBase, error) {
+
+	return &WASPBase{
+		cfg:   cfg,
+		log:   log,
+		group: singleflight.Group{},
+	}, nil
 }
 
 type RefCountedItem[T any] struct {

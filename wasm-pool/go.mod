@@ -5,7 +5,7 @@ go 1.24.0
 toolchain go1.24.4
 
 require (
-	github.com/bytecodealliance/wasmtime-go/v40 v40.0.0
+	github.com/bytecodealliance/wasmtime-go/v44 v44.0.0
 	github.com/ermes-thesis/ermes-common/caches v0.0.0-00010101000000-000000000000
 	github.com/ermes-thesis/ermes-common/logger v0.0.0-00010101000000-000000000000
 	github.com/ermes-thesis/ermes-common/model v0.0.0-00010101000000-000000000000

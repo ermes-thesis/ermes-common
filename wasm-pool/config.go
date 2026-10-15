@@ -8,12 +8,43 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type Config struct {
-	PoolSize  int           `yaml:"poolSize"`
-	Timeout   time.Duration `yaml:"timeout"`
-	WithCache CacheType     `yaml:"withCache"`
-	CacheSize int           `yaml:"cacheSize"`
-	IsAot     bool          `yaml:"isAot"`
+type FunctionCacheConfig struct {
+	Size        int           `yaml:"size"`
+	Ttl         time.Duration `yaml:"ttl"`
+	RegistryDir string        `yaml:"registryDir"`
+}
+
+type WASPConfig struct {
+	PoolSize  int               `yaml:"poolSize"`
+	Timeout   time.Duration     `yaml:"timeout"`
+	WithCache CacheType         `yaml:"withCache"`
+	CacheSize int               `yaml:"cacheSize"`
+	RunMode   RunMode           `yaml:"runMode"`
+	Runtime   ChosenWasmRuntime `yaml:"runtime"`
+}
+
+type RunMode int
+
+const (
+	AOT RunMode = iota
+	Dynamic
+)
+
+func (m *RunMode) UnmarshalYAML(value *yaml.Node) error {
+	var s string
+	if err := value.Decode(&s); err != nil {
+		return err
+	}
+	switch strings.ToLower(s) {
+	case "aot":
+		*m = AOT
+	case "dynamic":
+		*m = Dynamic
+	default:
+		return fmt.Errorf("unknown run mode: %s", s)
+	}
+
+	return nil
 }
 
 type CacheType int
